@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1074558157752",
+    "project_id": "kimpul-1832",
+    "storage_bucket": "kimpul-1832.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1074558157752:android:20846af0126f34672f854d",
+        "android_client_info": {
+          "package_name": "com.example.kimpul"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA7BmkSaEJk8o1z43U4bcoQLBxawcihZQs"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
