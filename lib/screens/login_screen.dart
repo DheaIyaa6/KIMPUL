@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:kimpul/screens/register_screen.dart';
+import 'package:kimpul/screens/lupa_pass.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -33,7 +34,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     color: Color(0xFFE93A56),
                   ),
                 ),
-                const SizedBox(height: 12), // Jarak dekat ke Selamat Datang
+                const SizedBox(height: 12),
                 const Text(
                   'Selamat Datang',
                   textAlign: TextAlign.center,
@@ -66,9 +67,21 @@ class _LoginScreenState extends State<LoginScreen> {
                 // --- Password ---
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: const [
-                    Text('Password', style: TextStyle(fontWeight: FontWeight.w500)),
-                    Text('Lupa Password?', style: TextStyle(color: Color(0xFFE93A56), fontSize: 12)),
+                  children: [
+                    const Text('Password', style: TextStyle(fontWeight: FontWeight.w500)),
+                    GestureDetector(
+                      onTap: () {
+                        // Navigasi ke halaman Lupa Pass dan bisa ditambahkan logika Firebase sendPasswordResetEmail di sini nantinya
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (context) => const LupaPassScreen()),
+                        );
+                      },
+                      child: const Text(
+                        'Lupa Password?',
+                        style: TextStyle(color: Color(0xFFE93A56), fontSize: 12, fontWeight: FontWeight.bold),
+                      ),
+                    ),
                   ],
                 ),
                 const SizedBox(height: 8),

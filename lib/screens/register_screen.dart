@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -8,9 +10,98 @@ class RegisterScreen extends StatefulWidget {
 }
 
 class _RegisterScreenState extends State<RegisterScreen> {
+  // Controller untuk menangkap teks inputan
+  final TextEditingController _nameController = TextEditingController();
+  final TextEditingController _emailController = TextEditingController();
+  final TextEditingController _passwordController = TextEditingController();
+  final TextEditingController _confirmPasswordController = TextEditingController();
+
   // Variabel untuk mengontrol mata password utama & konfirmasi password
   bool _isPasswordObscure = true;
   bool _isConfirmPasswordObscure = true;
+  bool _isLoading = false;
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _emailController.dispose();
+    _passwordController.dispose();
+    _confirmPasswordController.dispose();
+    super.dispose();
+  }
+
+  // Fungsi Register ke Firebase Auth & Firestore
+  Future<void> _registerUser() async {
+    if (_nameController.text.isEmpty ||
+        _emailController.text.isEmpty ||
+        _passwordController.text.isEmpty ||
+        _confirmPasswordController.text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Semua kolom harus diisi!')),
+      );
+      return;
+    }
+
+    if (_passwordController.text != _confirmPasswordController.text) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Password dan Konfirmasi Password tidak sama!')),
+      );
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      // 1. Buat akun di Firebase Authentication
+      UserCredential userCredential = await FirebaseAuth.instance.createUserWithEmailAndPassword(
+        email: _emailController.text.trim(),
+        password: _passwordController.text.trim(),
+      );
+
+      // 2. Simpan data profil ke Cloud Firestore
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(userCredential.user!.uid)
+          .set({
+        'uid': userCredential.user!.uid,
+        'name': _nameController.text.trim(),
+        'email': _emailController.text.trim(),
+        'createdAt': Timestamp.now(),
+      });
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Registrasi Berhasil! Silakan Masuk.')),
+      );
+      Navigator.pop(context); // Kembali ke halaman login
+
+    } on FirebaseAuthException catch (e) {
+      String message = 'Terjadi kesalahan';
+      if (e.code == 'weak-password') {
+        message = 'Password terlalu lemah.';
+      } else if (e.code == 'email-already-in-use') {
+        message = 'Email sudah terdaftar.';
+      } else if (e.code == 'invalid-email') {
+        message = 'Format email tidak valid.';
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(message)),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error: $e')),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -57,6 +148,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
               const Text('Nama', style: TextStyle(fontWeight: FontWeight.w500)),
               const SizedBox(height: 6),
               TextField(
+                controller: _nameController,
                 decoration: InputDecoration(
                   hintText: 'Nama Lengkap',
                   filled: true,
@@ -73,6 +165,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
               const Text('Email', style: TextStyle(fontWeight: FontWeight.w500)),
               const SizedBox(height: 6),
               TextField(
+                controller: _emailController,
+                keyboardType: TextInputType.emailAddress,
                 decoration: InputDecoration(
                   hintText: 'nama@email.com',
                   filled: true,
@@ -89,6 +183,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
               const Text('Password', style: TextStyle(fontWeight: FontWeight.w500)),
               const SizedBox(height: 6),
               TextField(
+                controller: _passwordController,
                 obscureText: _isPasswordObscure,
                 decoration: InputDecoration(
                   hintText: '••••••••',
@@ -117,6 +212,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
               const Text('Konfirmasi Password', style: TextStyle(fontWeight: FontWeight.w500)),
               const SizedBox(height: 6),
               TextField(
+                controller: _confirmPasswordController,
                 obscureText: _isConfirmPasswordObscure,
                 decoration: InputDecoration(
                   hintText: '••••••••',
@@ -143,9 +239,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
               // --- Tombol Daftar ---
               ElevatedButton(
-                onPressed: () {
-                  // Logika register ke Firebase nanti di sini
-                },
+                onPressed: _isLoading ? null : _registerUser,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFFE93A56),
                   padding: const EdgeInsets.symmetric(vertical: 16),
@@ -153,10 +247,19 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     borderRadius: BorderRadius.circular(12),
                   ),
                 ),
-                child: const Text(
-                  'Daftar',
-                  style: TextStyle(fontSize: 16, color: Colors.white, fontWeight: FontWeight.bold),
-                ),
+                child: _isLoading
+                    ? const SizedBox(
+                        height: 20,
+                        width: 20,
+                        child: CircularProgressIndicator(
+                          color: Colors.white,
+                          strokeWidth: 2,
+                        ),
+                      )
+                    : const Text(
+                        'Daftar',
+                        style: TextStyle(fontSize: 16, color: Colors.white, fontWeight: FontWeight.bold),
+                      ),
               ),
               const SizedBox(height: 20),
 
