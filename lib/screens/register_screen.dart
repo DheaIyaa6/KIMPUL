@@ -72,12 +72,25 @@ class _RegisterScreenState extends State<RegisterScreen> {
       });
 
       if (!mounted) return;
+
+      // Matikan loading state terlebih dahulu sebelum kembali ke halaman login
+      setState(() {
+        _isLoading = false;
+      });
+
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Registrasi Berhasil! Silakan Masuk.')),
       );
+      
       Navigator.pop(context); // Kembali ke halaman login
 
     } on FirebaseAuthException catch (e) {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+
       String message = 'Terjadi kesalahan';
       if (e.code == 'weak-password') {
         message = 'Password terlalu lemah.';
@@ -91,15 +104,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
         SnackBar(content: Text(message)),
       );
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: $e')),
-      );
-    } finally {
       if (mounted) {
         setState(() {
           _isLoading = false;
         });
       }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error: $e')),
+      );
     }
   }
 
@@ -112,7 +125,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: Colors.black),
-          onPressed: () => Navigator.pop(context), // Kembali ke halaman login
+          onPressed: () => Navigator.pop(context),
         ),
         centerTitle: true,
         title: const Text(
@@ -270,7 +283,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   const Text('Sudah punya akun? '),
                   GestureDetector(
                     onTap: () {
-                      Navigator.pop(context); // Kembali ke halaman login
+                      Navigator.pop(context);
                     },
                     child: const Text(
                       'Masuk',
