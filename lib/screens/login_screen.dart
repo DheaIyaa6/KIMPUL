@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:kimpul/screens/register_screen.dart';
 import 'package:kimpul/screens/lupa_pass.dart';
-// import 'package:kimpul/screens/home_screen.dart'; // Uncomment dan sesuaikan jika sudah ada halaman beranda
+import 'package:kimpul/screens/home_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -26,9 +25,10 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
-  // Fungsi Login ke Firebase Authentication
+  // Fungsi Login Mockup (Tanpa Koneksi Firebase/Database)
   Future<void> _loginUser() async {
-    if (_emailController.text.isEmpty || _passwordController.text.isEmpty) {
+    if (_emailController.text.trim().isEmpty ||
+        _passwordController.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Email dan Password harus diisi!')),
       );
@@ -39,43 +39,25 @@ class _LoginScreenState extends State<LoginScreen> {
       _isLoading = true;
     });
 
-    try {
-      await FirebaseAuth.instance.signInWithEmailAndPassword(
-        email: _emailController.text.trim(),
-        password: _passwordController.text.trim(),
-      );
+    // Simulasi delay proses login (1 detik)
+    await Future.delayed(const Duration(seconds: 1));
 
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Login Berhasil!')),
-      );
+    if (!mounted) return;
 
-    } on FirebaseAuthException catch (e) {
-      String message = 'Terjadi kesalahan saat login.';
-      if (e.code == 'user-not-found') {
-        message = 'Email tidak terdaftar.';
-      } else if (e.code == 'wrong-password') {
-        message = 'Password salah.';
-      } else if (e.code == 'invalid-email') {
-        message = 'Format email tidak valid.';
-      } else if (e.code == 'invalid-credential') {
-        message = 'Email atau password salah.';
-      }
+    setState(() {
+      _isLoading = false;
+    });
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(message)),
-      );
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: $e')),
-      );
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
-    }
+    // Tampilkan pesan sukses
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Login Berhasil!')),
+    );
+
+    // Pindah ke HomeScreen dan hapus halaman login dari stack
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(builder: (context) => const HomeScreen()),
+    );
   }
 
   @override
@@ -114,7 +96,8 @@ class _LoginScreenState extends State<LoginScreen> {
                 const SizedBox(height: 32),
 
                 // --- Email ---
-                const Text('Email', style: TextStyle(fontWeight: FontWeight.w500)),
+                const Text('Email',
+                    style: TextStyle(fontWeight: FontWeight.w500)),
                 const SizedBox(height: 8),
                 TextField(
                   controller: _emailController,
@@ -135,17 +118,22 @@ class _LoginScreenState extends State<LoginScreen> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text('Password', style: TextStyle(fontWeight: FontWeight.w500)),
+                    const Text('Password',
+                        style: TextStyle(fontWeight: FontWeight.w500)),
                     GestureDetector(
                       onTap: () {
                         Navigator.push(
                           context,
-                          MaterialPageRoute(builder: (context) => const LupaPassScreen()),
+                          MaterialPageRoute(
+                              builder: (context) => const LupaPassScreen()),
                         );
                       },
                       child: const Text(
                         'Lupa Password?',
-                        style: TextStyle(color: Color(0xFFE93A56), fontSize: 12, fontWeight: FontWeight.bold),
+                        style: TextStyle(
+                            color: Color(0xFFE93A56),
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold),
                       ),
                     ),
                   ],
@@ -164,7 +152,9 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                     suffixIcon: IconButton(
                       icon: Icon(
-                        _isObscure ? Icons.visibility_off : Icons.visibility,
+                        _isObscure
+                            ? Icons.visibility_off
+                            : Icons.visibility,
                         color: Colors.grey,
                       ),
                       onPressed: () {
@@ -198,7 +188,10 @@ class _LoginScreenState extends State<LoginScreen> {
                         )
                       : const Text(
                           'Masuk',
-                          style: TextStyle(fontSize: 16, color: Colors.white, fontWeight: FontWeight.bold),
+                          style: TextStyle(
+                              fontSize: 16,
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold),
                         ),
                 ),
                 const SizedBox(height: 24),
@@ -212,12 +205,16 @@ class _LoginScreenState extends State<LoginScreen> {
                       onTap: () {
                         Navigator.push(
                           context,
-                          MaterialPageRoute(builder: (context) => const RegisterScreen()),
+                          MaterialPageRoute(
+                              builder: (context) =>
+                                  const RegisterScreen()),
                         );
                       },
                       child: const Text(
                         'Daftar',
-                        style: TextStyle(color: Color(0xFFE93A56), fontWeight: FontWeight.bold),
+                        style: TextStyle(
+                            color: Color(0xFFE93A56),
+                            fontWeight: FontWeight.bold),
                       ),
                     ),
                   ],

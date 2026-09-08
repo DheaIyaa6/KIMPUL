@@ -1,6 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -14,7 +12,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
-  final TextEditingController _confirmPasswordController = TextEditingController();
+  final TextEditingController _confirmPasswordController =
+      TextEditingController();
 
   // Variabel untuk mengontrol mata password utama & konfirmasi password
   bool _isPasswordObscure = true;
@@ -30,21 +29,24 @@ class _RegisterScreenState extends State<RegisterScreen> {
     super.dispose();
   }
 
-  // Fungsi Register ke Firebase Auth & Firestore
+  // Fungsi Register Mockup (Tanpa Koneksi Firebase/Database)
   Future<void> _registerUser() async {
-    if (_nameController.text.isEmpty ||
-        _emailController.text.isEmpty ||
-        _passwordController.text.isEmpty ||
-        _confirmPasswordController.text.isEmpty) {
+    // Validasi input kosong
+    if (_nameController.text.trim().isEmpty ||
+        _emailController.text.trim().isEmpty ||
+        _passwordController.text.trim().isEmpty ||
+        _confirmPasswordController.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Semua kolom harus diisi!')),
       );
       return;
     }
 
+    // Validasi kecocokan password
     if (_passwordController.text != _confirmPasswordController.text) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Password dan Konfirmasi Password tidak sama!')),
+        const SnackBar(
+            content: Text('Password dan Konfirmasi Password tidak sama!')),
       );
       return;
     }
@@ -53,67 +55,21 @@ class _RegisterScreenState extends State<RegisterScreen> {
       _isLoading = true;
     });
 
-    try {
-      // 1. Buat akun di Firebase Authentication
-      UserCredential userCredential = await FirebaseAuth.instance.createUserWithEmailAndPassword(
-        email: _emailController.text.trim(),
-        password: _passwordController.text.trim(),
-      );
+    // Simulasi delay proses registrasi (1 detik)
+    await Future.delayed(const Duration(seconds: 1));
 
-      // 2. Simpan data profil ke Cloud Firestore
-      await FirebaseFirestore.instance
-          .collection('users')
-          .doc(userCredential.user!.uid)
-          .set({
-        'uid': userCredential.user!.uid,
-        'name': _nameController.text.trim(),
-        'email': _emailController.text.trim(),
-        'createdAt': Timestamp.now(),
-      });
+    if (!mounted) return;
 
-      if (!mounted) return;
+    setState(() {
+      _isLoading = false;
+    });
 
-      // Matikan loading state terlebih dahulu sebelum kembali ke halaman login
-      setState(() {
-        _isLoading = false;
-      });
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Registrasi Berhasil! Silakan Masuk.')),
+    );
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Registrasi Berhasil! Silakan Masuk.')),
-      );
-      
-      Navigator.pop(context); // Kembali ke halaman login
-
-    } on FirebaseAuthException catch (e) {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
-
-      String message = 'Terjadi kesalahan';
-      if (e.code == 'weak-password') {
-        message = 'Password terlalu lemah.';
-      } else if (e.code == 'email-already-in-use') {
-        message = 'Email sudah terdaftar.';
-      } else if (e.code == 'invalid-email') {
-        message = 'Format email tidak valid.';
-      }
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(message)),
-      );
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: $e')),
-      );
-    }
+    // Kembali ke halaman Login
+    Navigator.pop(context);
   }
 
   @override
@@ -193,7 +149,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
               const SizedBox(height: 16),
 
               // --- Password dengan Icon Mata ---
-              const Text('Password', style: TextStyle(fontWeight: FontWeight.w500)),
+              const Text('Password',
+                  style: TextStyle(fontWeight: FontWeight.w500)),
               const SizedBox(height: 6),
               TextField(
                 controller: _passwordController,
@@ -208,7 +165,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   ),
                   suffixIcon: IconButton(
                     icon: Icon(
-                      _isPasswordObscure ? Icons.visibility_off : Icons.visibility,
+                      _isPasswordObscure
+                          ? Icons.visibility_off
+                          : Icons.visibility,
                       color: Colors.grey,
                     ),
                     onPressed: () {
@@ -222,7 +181,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
               const SizedBox(height: 16),
 
               // --- Konfirmasi Password dengan Icon Mata ---
-              const Text('Konfirmasi Password', style: TextStyle(fontWeight: FontWeight.w500)),
+              const Text('Konfirmasi Password',
+                  style: TextStyle(fontWeight: FontWeight.w500)),
               const SizedBox(height: 6),
               TextField(
                 controller: _confirmPasswordController,
@@ -237,12 +197,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   ),
                   suffixIcon: IconButton(
                     icon: Icon(
-                      _isConfirmPasswordObscure ? Icons.visibility_off : Icons.visibility,
+                      _isConfirmPasswordObscure
+                          ? Icons.visibility_off
+                          : Icons.visibility,
                       color: Colors.grey,
                     ),
                     onPressed: () {
                       setState(() {
-                        _isConfirmPasswordObscure = !_isConfirmPasswordObscure;
+                        _isConfirmPasswordObscure =
+                            !_isConfirmPasswordObscure;
                       });
                     },
                   ),
@@ -271,7 +234,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       )
                     : const Text(
                         'Daftar',
-                        style: TextStyle(fontSize: 16, color: Colors.white, fontWeight: FontWeight.bold),
+                        style: TextStyle(
+                          fontSize: 16,
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
               ),
               const SizedBox(height: 20),
@@ -287,7 +254,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     },
                     child: const Text(
                       'Masuk',
-                      style: TextStyle(color: Color(0xFFE93A56), fontWeight: FontWeight.bold),
+                      style: TextStyle(
+                        color: Color(0xFFE93A56),
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                   ),
                 ],
