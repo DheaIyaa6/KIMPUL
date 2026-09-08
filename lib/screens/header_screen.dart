@@ -15,10 +15,10 @@ class HeaderWidget extends StatelessWidget implements PreferredSizeWidget {
   Widget build(BuildContext context) {
     return Container(
       decoration: const BoxDecoration(
-        color: Color.fromRGBO(255, 255, 255, 0.95),
+        color: Colors.white,
         border: Border(
           bottom: BorderSide(
-            color: Color.fromRGBO(223, 227, 231, 0.8),
+            color: Color(0xFFE2E8F0),
             width: 1,
           ),
         ),
@@ -34,91 +34,87 @@ class HeaderWidget extends StatelessWidget implements PreferredSizeWidget {
               // Brand Logo & Name
               Row(
                 children: [
-                  // Logo Container / Placeholder
+                  // Circular Asset Image Logo
                   Container(
-                    width: 32,
-                    height: 32,
-                    decoration: const BoxDecoration(
-                      color: Color.fromRGBO(234, 67, 89, 0.1),
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
                       shape: BoxShape.circle,
+                      border: Border.all(
+                        color: const Color(0xFFE2E8F0),
+                        width: 1.5,
+                      ),
                     ),
-                    child: const Icon(
-                      Icons.show_chart_rounded,
-                      size: 20,
-                      color: Color(0xFFEA4359),
+                    child: ClipOval(
+                      child: Image.asset(
+                        'assets/images/trademark.png',
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) {
+                          // Fallback jika aset gambar belum dimuat
+                          return const Icon(
+                            Icons.broken_image_rounded,
+                            size: 20,
+                            color: Color(0xFF64748B),
+                          );
+                        },
+                      ),
                     ),
                   ),
-                  const SizedBox(width: 10),
+                  const SizedBox(width: 12),
 
-                  // Text Title & Subtitle
-                  Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      RichText(
-                        text: const TextSpan(
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: -0.5,
-                          ),
-                          children: [
-                            TextSpan(
-                              text: 'KIM',
-                              style: TextStyle(color: Color(0xFF253545)),
-                            ),
-                            TextSpan(
-                              text: 'PUL',
-                              style: TextStyle(color: Color(0xFFEA4359)),
-                            ),
-                          ],
-                        ),
+                  // Title Text: KIMPUL
+                  RichText(
+                    text: const TextSpan(
+                      style: TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: -0.5,
                       ),
-                      const SizedBox(height: 2),
-                      const Text(
-                        'KALKULATOR TRADING',
-                        style: TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w600,
-                          color: Color(0xFF64748B),
-                          letterSpacing: 0.5,
+                      children: [
+                        TextSpan(
+                          text: 'KIM',
+                          style: TextStyle(color: Color(0xFF1E293B)),
                         ),
-                      ),
-                    ],
+                        TextSpan(
+                          text: 'PUL',
+                          style: TextStyle(color: Color(0xFFE93A56)),
+                        ),
+                      ],
+                    ),
                   ),
                 ],
               ),
 
-              // Action Controls (Notification Button dengan Red Dot)
+              // Notification Button Icon dengan Red Dot
               Material(
                 color: Colors.transparent,
                 child: InkWell(
                   onTap: onOpenNotifications,
                   borderRadius: BorderRadius.circular(20),
                   child: Container(
-                    width: 36,
-                    height: 36,
+                    width: 40,
+                    height: 40,
                     alignment: Alignment.center,
                     child: Stack(
                       children: [
                         const Icon(
                           Icons.notifications_none_rounded,
-                          size: 22,
-                          color: Color(0xFF515F74),
+                          size: 26,
+                          color: Color(0xFF334155),
                         ),
                         // Red Badge Dot
                         Positioned(
                           right: 1,
                           top: 1,
                           child: Container(
-                            width: 8,
-                            height: 8,
+                            width: 10,
+                            height: 10,
                             decoration: BoxDecoration(
-                              color: const Color(0xFFEA4359),
+                              color: const Color(0xFFE93A56),
                               shape: BoxShape.circle,
                               border: Border.all(
                                 color: Colors.white,
-                                width: 1.5,
+                                width: 2,
                               ),
                             ),
                           ),

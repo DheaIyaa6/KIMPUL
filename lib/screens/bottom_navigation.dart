@@ -6,7 +6,7 @@ class BottomNav extends StatelessWidget {
   final ValueChanged<int> onTap;
 
   const BottomNav({
-    super.key, // Menggunakan super.key
+    super.key,
     required this.currentIndex,
     required this.historyCount,
     required this.onTap,
@@ -22,7 +22,7 @@ class BottomNav extends StatelessWidget {
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05), // Menggantikan withOpacity
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 10,
             offset: const Offset(0, -2),
           ),
@@ -35,24 +35,28 @@ class BottomNav extends StatelessWidget {
         backgroundColor: Colors.white,
         selectedItemColor: const Color(0xFF0F172A),
         unselectedItemColor: const Color(0xFF94A3B8),
-        selectedFontSize: 12,
-        unselectedFontSize: 12,
+        selectedFontSize: 11.5,
+        unselectedFontSize: 11.5,
         items: [
+          // Index 0: Beranda
           const BottomNavigationBarItem(
             icon: Icon(Icons.home_outlined),
             activeIcon: Icon(Icons.home_rounded),
             label: 'Beranda',
           ),
+          // Index 1: Berita
+          const BottomNavigationBarItem(
+            icon: Icon(Icons.newspaper_outlined),
+            activeIcon: Icon(Icons.newspaper_rounded),
+            label: 'Berita',
+          ),
+          // Index 2: Kalkulator
           const BottomNavigationBarItem(
             icon: Icon(Icons.calculate_outlined),
             activeIcon: Icon(Icons.calculate_rounded),
-            label: 'Pivot',
+            label: 'Kalkulator',
           ),
-          const BottomNavigationBarItem(
-            icon: Icon(Icons.account_balance_wallet_outlined),
-            activeIcon: Icon(Icons.account_balance_wallet_rounded),
-            label: 'Margin',
-          ),
+          // Index 3: Riwayat (dengan Badge Counter)
           BottomNavigationBarItem(
             icon: Stack(
               clipBehavior: Clip.none,
@@ -88,6 +92,7 @@ class BottomNav extends StatelessWidget {
             activeIcon: const Icon(Icons.history_rounded),
             label: 'Riwayat',
           ),
+          // Index 4: Profil
           const BottomNavigationBarItem(
             icon: Icon(Icons.person_outline_rounded),
             activeIcon: Icon(Icons.person_rounded),

@@ -138,15 +138,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
             child: Column(
               children: [
-                // Avatar with Edit Camera Button
+                // Avatar Profil Default Kosongan
                 Stack(
                   children: [
-                    CircleAvatar(
+                    const CircleAvatar(
                       radius: 40,
-                      backgroundColor: const Color(0xFFF1F5F9),
-                      backgroundImage: NetworkImage(widget.user.avatarUrl),
-                      onForegroundImageError: (exception, stackTrace) {},
-                      child: const Icon(Icons.person, size: 40, color: Color(0xFF64748B)),
+                      backgroundColor: Color(0xFFF1F5F9),
+                      child: Icon(
+                        Icons.person_rounded,
+                        size: 48,
+                        color: Color(0xFF64748B),
+                      ),
                     ),
                     Positioned(
                       bottom: 0,
