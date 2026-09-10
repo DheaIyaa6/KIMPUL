@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:intl/date_symbol_data_local.dart'; 
 import 'package:kimpul/screens/splash_screen.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+    await initializeDateFormatting('id_ID', null);
   runApp(const MyApp());
 }
 
@@ -10,7 +13,6 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // 🎨 DEFINISI SKEMA WARNA GLOBAL APLIKASI KIMPUL
     const Color primaryColor = Color(0xFFE93A56);   // Merah Kimpul
     const Color secondaryColor = Color(0xFF515F74); // Abu-abu Slate
     const Color darkColor = Color(0xFF0F172A);      // Hitam/Dark Slate

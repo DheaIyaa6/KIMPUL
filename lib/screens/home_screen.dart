@@ -1,4 +1,6 @@
+import 'dart:async'; 
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart'; 
 import 'package:webview_flutter/webview_flutter.dart';
 import 'package:kimpul/screens/header_screen.dart';
 import 'package:kimpul/screens/tradingview_screen.dart';
@@ -18,6 +20,10 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   int _selectedIndex = 0;
+
+  // 🌟 Timer & Waktu Real-time
+  late Timer _timer;
+  late DateTime _currentTime;
 
   // Controller WebView untuk Mini Chart
   late final WebViewController _miniChartController;
@@ -91,6 +97,23 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     _initMiniChartWidget();
+
+    // 🌟 Inisialisasi waktu awal & timer 1 detik
+    _currentTime = DateTime.now();
+    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (mounted) {
+        setState(() {
+          _currentTime = DateTime.now();
+        });
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    // 🌟 Hentikan timer untuk menghindari memory leak saat screen ditutup
+    _timer.cancel();
+    super.dispose();
   }
 
   // Inisialisasi TradingView Mini Chart Widget
@@ -147,28 +170,64 @@ class _HomeScreenState extends State<HomeScreen> {
     final bool marketActive = _isMarketActive();
     final primaryColor = Theme.of(context).colorScheme.primary;
 
+    // 🌟 Format Tanggal & Jam Bahasa Indonesia
+    String formattedDate = DateFormat('EEEE, d MMMM yyyy', 'id_ID').format(_currentTime);
+    String formattedTime = DateFormat('HH:mm:ss', 'id_ID').format(_currentTime);
+
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16.0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Greeting User
-          Column(
+          // 🌟 Greeting User + Realtime Date & Clock (Sebelah Kanan)
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
-                'Selamat Datang',
-                style: TextStyle(fontSize: 13, color: Color(0xFF515F74)),
+              // Sisi Kiri: Greeting
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Selamat Datang',
+                    style: TextStyle(fontSize: 13, color: Color(0xFF515F74)),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    'Dhea Ananda',
+                    style: TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                      color: primaryColor,
+                      letterSpacing: -0.5,
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(height: 2),
-              Text(
-                'Dhea Ananda',
-                style: TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.bold,
-                  color: primaryColor,
-                  letterSpacing: -0.5,
-                ),
+
+              // Sisi Kanan: Hari, Tanggal, & Jam Real-Time
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(
+                    formattedDate,
+                    style: const TextStyle(
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF0F172A),
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    '$formattedTime WIB',
+                    style: TextStyle(
+                      fontSize: 13.5,
+                      fontWeight: FontWeight.bold,
+                      color: primaryColor,
+                      fontFamily: 'monospace', // Agar posisi angka tetap stabil saat detik berganti
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
@@ -346,12 +405,12 @@ class _HomeScreenState extends State<HomeScreen> {
                       width: 38,
                       height: 38,
                       decoration: BoxDecoration(
-                        color: primaryColor, // Latar belakang icon Primary Color
+                        color: primaryColor,
                         borderRadius: BorderRadius.circular(10),
                       ),
                       child: const Icon(
                         Icons.monetization_on_rounded,
-                        color: Colors.white, // Icon warna Putih
+                        color: Colors.white,
                         size: 20,
                       ),
                     ),
@@ -446,7 +505,7 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           const SizedBox(height: 20),
 
-          // Tombol TradingView Full (Dominan Primary Color)
+          // Tombol TradingView Full
           SizedBox(
             width: double.infinity,
             child: ElevatedButton.icon(
@@ -461,7 +520,7 @@ class _HomeScreenState extends State<HomeScreen> {
               icon: const Icon(Icons.candlestick_chart_rounded, size: 20, color: Colors.white),
               label: const Text('Buka Grafik Interaktif TradingView'),
               style: ElevatedButton.styleFrom(
-                backgroundColor: primaryColor, // Menggunakan Primary Color
+                backgroundColor: primaryColor,
                 foregroundColor: Colors.white,
                 elevation: 0,
                 padding: const EdgeInsets.symmetric(vertical: 14),
@@ -740,10 +799,10 @@ class _HomeScreenState extends State<HomeScreen> {
             Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: primaryColor, // Background Primary Color
+                color: primaryColor,
                 borderRadius: BorderRadius.circular(10),
               ),
-              child: Icon(icon, color: Colors.white, size: 20), // Icon Putih
+              child: Icon(icon, color: Colors.white, size: 20),
             ),
             const SizedBox(height: 12),
             Text(
