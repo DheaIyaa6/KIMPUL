@@ -13,6 +13,8 @@ class CalcHubScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final primaryColor = Theme.of(context).colorScheme.primary;
+
     return SingleChildScrollView(
       padding: const EdgeInsets.only(bottom: 24, left: 16, right: 16, top: 12),
       child: Column(
@@ -43,12 +45,13 @@ class CalcHubScreen extends StatelessWidget {
                 context,
                 title: 'Pivot Point Calculator',
                 subtitle:
-                    'Hitung level pivot harian, tiga tingkat support (S1–S3), dan tiga tingkat resistance (R1–R3) berdasarkan harga tertinggi, terendah, dan penutupan.',
+                    'Hitung level pivot harian, empat tingkat support (S1–S4), dan empat tingkat resistance (R1–R4) berdasarkan harga tertinggi, terendah, dan penutupan.',
                 badgeText: 'Floor Classical',
                 icon: Icons.query_stats_rounded,
                 buttonText: 'Buka Kalkulator Pivot',
-                feature1: 'S/R 3 Tingkat',
+                feature1: 'S/R 4 Tingkat',
                 feature2: 'Formula Baku Intraday',
+                primaryColor: primaryColor,
                 onTap: () => onSelectCalc(CalcView.pivot),
               ),
               const SizedBox(height: 14),
@@ -64,6 +67,7 @@ class CalcHubScreen extends StatelessWidget {
                 buttonText: 'Buka Kalkulator Emas Fisik',
                 feature1: 'Regulasi Pajak PMK',
                 feature2: 'Estimasi Spread Buyback',
+                primaryColor: primaryColor,
                 onTap: () => onSelectCalc(CalcView.gold),
               ),
             ],
@@ -85,14 +89,14 @@ class CalcHubScreen extends StatelessWidget {
                   width: 32,
                   height: 32,
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: primaryColor.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: const Color(0xFFE2E8F0)),
+                    border: Border.all(color: primaryColor.withValues(alpha: 0.2)),
                   ),
-                  child: const Icon(
+                  child: Icon(
                     Icons.info_outline_rounded,
                     size: 18,
-                    color: Color(0xFF0F172A),
+                    color: primaryColor,
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -137,6 +141,7 @@ class CalcHubScreen extends StatelessWidget {
     required String buttonText,
     required String feature1,
     required String feature2,
+    required Color primaryColor,
     required VoidCallback onTap,
   }) {
     return Container(
@@ -165,7 +170,7 @@ class CalcHubScreen extends StatelessWidget {
                 width: 44,
                 height: 44,
                 decoration: BoxDecoration(
-                  color: const Color(0xFF0F172A),
+                  color: primaryColor,
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Icon(
@@ -180,16 +185,16 @@ class CalcHubScreen extends StatelessWidget {
                   vertical: 4,
                 ),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFF8FAFC),
+                  color: primaryColor.withValues(alpha: 0.08),
                   borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: const Color(0xFFE2E8F0)),
+                  border: Border.all(color: primaryColor.withValues(alpha: 0.2)),
                 ),
                 child: Text(
                   badgeText,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.w600,
-                    color: Color(0xFF64748B),
+                    color: primaryColor,
                   ),
                 ),
               ),
@@ -271,7 +276,7 @@ class CalcHubScreen extends StatelessWidget {
             child: ElevatedButton(
               onPressed: onTap,
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF0F172A),
+                backgroundColor: primaryColor,
                 foregroundColor: Colors.white,
                 elevation: 0,
                 padding: const EdgeInsets.symmetric(vertical: 12),

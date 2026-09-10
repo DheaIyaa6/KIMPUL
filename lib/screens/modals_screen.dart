@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-// --- MODELS (Sesuaikan dengan model data di aplikasi kamu) ---
+// --- MODELS ---
 class NewsItem {
   final String title;
   final String source;
@@ -70,6 +70,8 @@ class NewsDetailModal extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final primaryColor = Theme.of(context).colorScheme.primary;
+
     return ModalWrapper(
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -112,7 +114,7 @@ class NewsDetailModal extends StatelessWidget {
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF0F172A).withValues(alpha: 0.9),
+                    color: primaryColor,
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: Text(
@@ -169,7 +171,7 @@ class NewsDetailModal extends StatelessWidget {
                       ElevatedButton(
                         onPressed: () => Navigator.of(context).pop(),
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF0F172A),
+                          backgroundColor: primaryColor,
                           foregroundColor: Colors.white,
                           elevation: 0,
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -190,7 +192,7 @@ class NewsDetailModal extends StatelessWidget {
 
 // --- 2. CALCULATION DETAIL MODAL ---
 class CalculationDetailModal extends StatelessWidget {
-  final dynamic item; // Bisa berupa HistoryItem dari history_screen.dart
+  final dynamic item; // HistoryItem / PivotCalculation
 
   const CalculationDetailModal({super.key, required this.item});
 
@@ -203,6 +205,7 @@ class CalculationDetailModal extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final primaryColor = Theme.of(context).colorScheme.primary;
     final bool isPivot = item.type == 'pivot';
 
     return ModalWrapper(
@@ -220,7 +223,7 @@ class CalculationDetailModal extends StatelessWidget {
                   children: [
                     Icon(
                       isPivot ? Icons.candlestick_chart_rounded : Icons.workspace_premium_rounded,
-                      color: const Color(0xFF0F172A),
+                      color: primaryColor,
                       size: 20,
                     ),
                     const SizedBox(width: 8),
@@ -275,27 +278,37 @@ class CalculationDetailModal extends StatelessWidget {
               const SizedBox(height: 6),
               Column(
                 children: [
+                  if (item.r4 != null || item.s4 != null) ...[
+                    Row(
+                      children: [
+                        _buildLevelBox('R4', item.r4 ?? 0.0, true, primaryColor),
+                        const SizedBox(width: 6),
+                        _buildLevelBox('S4', item.s4 ?? 0.0, false, primaryColor),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                  ],
                   Row(
                     children: [
-                      _buildLevelBox('R3', item.r3 ?? 0.0, true),
+                      _buildLevelBox('R3', item.r3 ?? 0.0, true, primaryColor),
                       const SizedBox(width: 6),
-                      _buildLevelBox('S3', item.s3 ?? 0.0, false),
+                      _buildLevelBox('S3', item.s3 ?? 0.0, false, primaryColor),
                     ],
                   ),
                   const SizedBox(height: 6),
                   Row(
                     children: [
-                      _buildLevelBox('R2', item.r2 ?? 0.0, true),
+                      _buildLevelBox('R2', item.r2 ?? 0.0, true, primaryColor),
                       const SizedBox(width: 6),
-                      _buildLevelBox('S2', item.s2 ?? 0.0, false),
+                      _buildLevelBox('S2', item.s2 ?? 0.0, false, primaryColor),
                     ],
                   ),
                   const SizedBox(height: 6),
                   Row(
                     children: [
-                      _buildLevelBox('R1', item.r1 ?? 0.0, true),
+                      _buildLevelBox('R1', item.r1 ?? 0.0, true, primaryColor),
                       const SizedBox(width: 6),
-                      _buildLevelBox('S1', item.s1 ?? 0.0, false),
+                      _buildLevelBox('S1', item.s1 ?? 0.0, false, primaryColor),
                     ],
                   ),
                 ],
@@ -330,7 +343,7 @@ class CalculationDetailModal extends StatelessWidget {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       const Text('Total Akhir:', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Color(0xFF0F172A))),
-                      Text('Rp ${item.grandTotal ?? 0}', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Color(0xFF0F172A))),
+                      Text('Rp ${item.grandTotal ?? 0}', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: primaryColor)),
                     ],
                   ),
                 ],
@@ -343,7 +356,7 @@ class CalculationDetailModal extends StatelessWidget {
               child: ElevatedButton(
                 onPressed: () => Navigator.of(context).pop(),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF0F172A),
+                  backgroundColor: primaryColor,
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(vertical: 12),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -374,10 +387,10 @@ class CalculationDetailModal extends StatelessWidget {
     );
   }
 
-  static Widget _buildLevelBox(String title, double val, bool isResist) {
-    final Color bg = isResist ? const Color(0xFFFFF1F2) : const Color(0xFFECFDF5);
-    final Color border = isResist ? const Color(0xFFFECDD3) : const Color(0xFFA7F3D0);
-    final Color text = isResist ? const Color(0xFFBE123C) : const Color(0xFF047857);
+  static Widget _buildLevelBox(String title, double val, bool isResist, Color primaryColor) {
+    final Color bg = isResist ? primaryColor.withValues(alpha: 0.08) : const Color(0xFFECFDF5);
+    final Color border = isResist ? primaryColor.withValues(alpha: 0.2) : const Color(0xFFA7F3D0);
+    final Color text = isResist ? primaryColor : const Color(0xFF047857);
 
     return Expanded(
       child: Container(
@@ -450,6 +463,8 @@ class _EditProfileModalState extends State<EditProfileModal> {
 
   @override
   Widget build(BuildContext context) {
+    final primaryColor = Theme.of(context).colorScheme.primary;
+
     return ModalWrapper(
       child: Padding(
         padding: const EdgeInsets.all(18),
@@ -469,11 +484,11 @@ class _EditProfileModalState extends State<EditProfileModal> {
               ],
             ),
             const Divider(height: 20, color: Color(0xFFE2E8F0)),
-            _buildInput('NAMA LENGKAP', _nameController, TextInputType.name),
+            _buildInput('NAMA LENGKAP', _nameController, TextInputType.name, primaryColor),
             const SizedBox(height: 12),
-            _buildInput('EMAIL', _emailController, TextInputType.emailAddress),
+            _buildInput('EMAIL', _emailController, TextInputType.emailAddress, primaryColor),
             const SizedBox(height: 12),
-            _buildInput('NOMOR TELEPON', _phoneController, TextInputType.phone),
+            _buildInput('NOMOR TELEPON', _phoneController, TextInputType.phone, primaryColor),
             const SizedBox(height: 18),
             SizedBox(
               width: double.infinity,
@@ -487,7 +502,7 @@ class _EditProfileModalState extends State<EditProfileModal> {
                   Navigator.of(context).pop();
                 },
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF0F172A),
+                  backgroundColor: primaryColor,
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(vertical: 12),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -501,7 +516,7 @@ class _EditProfileModalState extends State<EditProfileModal> {
     );
   }
 
-  Widget _buildInput(String label, TextEditingController controller, TextInputType type) {
+  Widget _buildInput(String label, TextEditingController controller, TextInputType type, Color primaryColor) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -513,13 +528,13 @@ class _EditProfileModalState extends State<EditProfileModal> {
           style: const TextStyle(fontSize: 13, color: Color(0xFF0F172A)),
           decoration: InputDecoration(
             contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            border: OutlineInputBorder(
+            enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
               borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: Color(0xFF0F172A)),
+              borderSide: BorderSide(color: primaryColor, width: 1.5),
             ),
           ),
         ),
@@ -541,6 +556,8 @@ class NotificationModal extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final primaryColor = Theme.of(context).colorScheme.primary;
+
     final notifications = [
       {
         'title': 'Alert Pivot XAU/USD',
@@ -573,10 +590,10 @@ class NotificationModal extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Row(
-                  children: const [
-                    Icon(Icons.notifications_rounded, size: 20, color: Color(0xFF0F172A)),
-                    SizedBox(width: 8),
-                    Text('Pusat Notifikasi',
+                  children: [
+                    Icon(Icons.notifications_rounded, size: 20, color: primaryColor),
+                    const SizedBox(width: 8),
+                    const Text('Pusat Notifikasi',
                         style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Color(0xFF0F172A))),
                   ],
                 ),
@@ -594,9 +611,9 @@ class NotificationModal extends StatelessWidget {
                   margin: const EdgeInsets.only(bottom: 8),
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: unread ? const Color(0xFFF8FAFC) : Colors.white,
+                    color: unread ? primaryColor.withValues(alpha: 0.05) : Colors.white,
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: unread ? const Color(0xFFCBD5E1) : const Color(0xFFE2E8F0)),
+                    border: Border.all(color: unread ? primaryColor.withValues(alpha: 0.3) : const Color(0xFFE2E8F0)),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -624,12 +641,12 @@ class NotificationModal extends StatelessWidget {
               child: OutlinedButton(
                 onPressed: () => Navigator.of(context).pop(),
                 style: OutlinedButton.styleFrom(
-                  backgroundColor: const Color(0xFFF8FAFC),
-                  side: const BorderSide(color: Color(0xFFE2E8F0)),
+                  backgroundColor: Colors.white,
+                  side: BorderSide(color: primaryColor.withValues(alpha: 0.3)),
                   padding: const EdgeInsets.symmetric(vertical: 12),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 ),
-                child: const Text('Tutup', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: Color(0xFF0F172A))),
+                child: Text('Tutup', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: primaryColor)),
               ),
             ),
           ],
@@ -654,6 +671,8 @@ class LogoutModal extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final primaryColor = Theme.of(context).colorScheme.primary;
+
     return ModalWrapper(
       child: Padding(
         padding: const EdgeInsets.all(20),
@@ -664,11 +683,11 @@ class LogoutModal extends StatelessWidget {
               width: 48,
               height: 48,
               decoration: BoxDecoration(
-                color: const Color(0xFFFFF1F2),
+                color: primaryColor.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: const Color(0xFFFECDD3)),
+                border: Border.all(color: primaryColor.withValues(alpha: 0.3)),
               ),
-              child: const Icon(Icons.logout_rounded, color: Color(0xFFBE123C), size: 24),
+              child: Icon(Icons.logout_rounded, color: primaryColor, size: 24),
             ),
             const SizedBox(height: 12),
             const Text(
@@ -704,7 +723,7 @@ class LogoutModal extends StatelessWidget {
                       onConfirm();
                     },
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFFE11D48),
+                      backgroundColor: primaryColor,
                       foregroundColor: Colors.white,
                       padding: const EdgeInsets.symmetric(vertical: 12),
                       elevation: 0,
@@ -797,7 +816,7 @@ class ConsultationModal extends StatelessWidget {
               width: double.infinity,
               child: ElevatedButton.icon(
                 onPressed: () {
-                  // Tambahkan plugin url_launcher jika ingin membuka tautan WhatsApp secara resmi
+                  // Tautan WhatsApp dapat di-handle via url_launcher
                 },
                 icon: const Icon(Icons.chat, size: 18),
                 label: const Text('Buka WhatsApp', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
@@ -819,6 +838,8 @@ class ConsultationModal extends StatelessWidget {
 // --- 7. TOAST NOTIFICATION HELPER ---
 class ToastNotification {
   static void show(BuildContext context, String message) {
+    final primaryColor = Theme.of(context).colorScheme.primary;
+
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         backgroundColor: Colors.transparent,
@@ -830,7 +851,7 @@ class ToastNotification {
             decoration: BoxDecoration(
               color: const Color(0xFF0F172A),
               borderRadius: BorderRadius.circular(30),
-              border: Border.all(color: const Color(0xFF334155)),
+              border: Border.all(color: primaryColor.withValues(alpha: 0.5)),
               boxShadow: const [
                 BoxShadow(color: Colors.black26, blurRadius: 10, offset: Offset(0, 4)),
               ],
@@ -838,7 +859,7 @@ class ToastNotification {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(Icons.check_circle, color: Color(0xFF34D399), size: 18),
+                Icon(Icons.check_circle, color: primaryColor, size: 18),
                 const SizedBox(width: 8),
                 Text(
                   message,
