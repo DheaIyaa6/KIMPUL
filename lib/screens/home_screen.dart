@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:webview_flutter/webview_flutter.dart';
 import 'package:kimpul/screens/header_screen.dart';
 import 'package:kimpul/screens/tradingview_screen.dart';
 import 'package:kimpul/screens/pivot_calculator.dart';
@@ -8,6 +7,7 @@ import 'package:kimpul/screens/calculatorhub_screen.dart';
 import 'package:kimpul/screens/news_screen.dart';
 import 'package:kimpul/screens/history_screen.dart';
 import 'package:kimpul/screens/profile_screen.dart';
+import 'package:kimpul/screens/login_screen.dart'; // <-- import halaman login
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -18,9 +18,12 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   int _selectedIndex = 0;
+  String _timeframe = '1D';
 
-  // Controller WebView untuk Mini Chart
-  late final WebViewController _miniChartController;
+  // Data harga emas (nanti diganti hasil fetch API asli)
+  double _goldPrice = 2345.50;
+  final double _goldChangePercent = 1.24;
+  final double _goldChangeValue = 28.80;
 
   // State navigasi internal di tab Kalkulator
   CalcView? _selectedCalcView;
@@ -68,653 +71,713 @@ class _HomeScreenState extends State<HomeScreen> {
     branch: 'Surabaya, Indonesia',
   );
 
-  // Fungsi Pengecekan Status Aktif/Tutup Pasar Emas Dunia (XAUUSD)
-  bool _isMarketActive() {
-    final now = DateTime.now().toUtc();
-    final weekday = now.weekday; // 1 = Senin, ..., 6 = Sabtu, 7 = Minggu
-    final hour = now.hour;
-
-    // 1. Libur Akhir Pekan (Weekend)
-    if (weekday == DateTime.saturday) return false;
-    if (weekday == DateTime.sunday && hour < 22) return false; // Belum jam 05.00 WIB Senin
-    if (weekday == DateTime.friday && hour >= 21) return false;  // Sudah lewat jam 04.00 WIB Sabtu
-
-    // 2. Daily Closing Break (Istirahat Harian Pasar Emas: ~04:00 - 05:00 WIB)
-    if (hour == 21) {
-      return false;
-    }
-
-    return true; // Pasar Aktif
-  }
-
-  @override
-  void initState() {
-    super.initState();
-    _initMiniChartWidget();
-  }
-
-  // Inisialisasi TradingView Mini Chart Widget
-  void _initMiniChartWidget() {
-    final String miniChartHtml = '''
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-        <style>
-          * { margin: 0; padding: 0; box-sizing: border-box; }
-          body, html { height: 100%; width: 100%; overflow: hidden; background-color: transparent; }
-          .tradingview-widget-container { height: 100%; width: 100%; }
-        </style>
-      </head>
-      <body>
-        <div class="tradingview-widget-container">
-          <div class="tradingview-widget-container__widget"></div>
-          <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-mini-symbol-overview.js" async>
-          {
-            "symbol": "OANDA:XAUUSD",
-            "width": "100%",
-            "height": "100%",
-            "locale": "id",
-            "dateRange": "1D",
-            "colorTheme": "light",
-            "trendLineColor": "rgba(233, 58, 86, 1)",
-            "underLineColor": "rgba(233, 58, 86, 0.12)",
-            "isTransparent": true,
-            "autosize": true,
-            "largeChartUrl": ""
-          }
-          </script>
-        </div>
-      </body>
-      </html>
-    ''';
-
-    _miniChartController = WebViewController()
-      ..setJavaScriptMode(JavaScriptMode.unrestricted)
-      ..setBackgroundColor(Colors.transparent)
-      ..loadHtmlString(miniChartHtml);
-  }
-
   void _onTabTapped(int index) {
     setState(() {
       _selectedIndex = index;
-      _selectedCalcView = null;
+      _selectedCalcView = null; // Reset pilihan kalkulator ketika ganti tab
     });
+  }
+
+  // Fungsi Refresh Data Beranda (harga emas & berita)
+  Future<void> _refreshHomeData() async {
+    try {
+      await Future.delayed(const Duration(milliseconds: 900));
+
+      setState(() {
+        // Simulasi update harga—hapus baris ini kalau API sudah siap
+        _goldPrice += 1.5;
+      });
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Gagal memuat data, coba lagi')),
+        );
+      }
+    }
+  }
+
+  // Fungsi Logout: kembali ke Halaman Login & hapus riwayat navigasi
+  void _handleLogout() {
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (context) => const LoginScreen()),
+      (route) => false,
+    );
   }
 
   // Tab 0: Beranda
   Widget _buildHomeTab() {
-    final bool marketActive = _isMarketActive();
-    final primaryColor = Theme.of(context).colorScheme.primary;
-
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Greeting User
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'Selamat Datang',
-                style: TextStyle(fontSize: 13, color: Color(0xFF515F74)),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                'Dhea Ananda',
-                style: TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.bold,
-                  color: primaryColor,
-                  letterSpacing: -0.5,
+    return RefreshIndicator(
+      color: const Color(0xFFE93A56),
+      onRefresh: _refreshHomeData,
+      child: SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Greeting & Live Status
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: const [
+                    Text(
+                      'Selamat Datang',
+                      style: TextStyle(fontSize: 13, color: Color(0xFF64748B)),
+                    ),
+                    SizedBox(height: 2),
+                    Text(
+                      'Dhea Ananda',
+                      style: TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF0F172A),
+                        letterSpacing: -0.5,
+                      ),
+                    ),
+                  ],
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-
-          // Card Tentang KIMPUL
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: const Color(0xFFE2E8F0)),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.02),
-                  blurRadius: 8,
-                  offset: const Offset(0, 2),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: const Color(0xFFE2E8F0)),
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 8,
+                        height: 8,
+                        decoration: const BoxDecoration(
+                          color: Color(0xFF10B981),
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      const Text(
+                        'Pasar Aktif • XAU',
+                        style: TextStyle(
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFF334155),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Row(
-                      children: [
-                        Container(
-                          width: 32,
-                          height: 32,
-                          decoration: BoxDecoration(
-                            color: primaryColor,
-                            shape: BoxShape.circle,
+            const SizedBox(height: 16),
+
+            // Card Tentang KIMPUL
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: const Color(0xFFE2E8F0)),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.02),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Row(
+                        children: [
+                          Container(
+                            width: 32,
+                            height: 32,
+                            decoration: const BoxDecoration(
+                              color: Color(0xFFFFE4E6),
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(
+                              Icons.info_outline_rounded,
+                              color: Color(0xFFE93A56),
+                              size: 20,
+                            ),
                           ),
-                          child: const Icon(
-                            Icons.info_outline_rounded,
-                            color: Colors.white,
-                            size: 18,
+                          const SizedBox(width: 10),
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: const [
+                              Text(
+                                'Tentang KIMPUL',
+                                style: TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.bold,
+                                  color: Color(0xFF0F172A),
+                                ),
+                              ),
+                              Text(
+                                'Identitas Resmi Aplikasi',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: Color(0xFF64748B),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFFF1F2),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: const Text(
+                          'K • I • M • P • U • L',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFFE93A56),
+                            letterSpacing: 1.0,
                           ),
                         ),
-                        const SizedBox(width: 10),
-                        Column(
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 14),
+                  RichText(
+                    text: const TextSpan(
+                      style: TextStyle(fontSize: 12.5, color: Color(0xFF334155), height: 1.5),
+                      children: [
+                        TextSpan(
+                          text: 'KIMPUL ',
+                          style: TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                        TextSpan(text: 'merupakan singkatan dari '),
+                        TextSpan(
+                          text: 'K',
+                          style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFFE93A56)),
+                        ),
+                        TextSpan(text: 'alkulator '),
+                        TextSpan(
+                          text: 'I',
+                          style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFFE93A56)),
+                        ),
+                        TextSpan(text: 'nformasi '),
+                        TextSpan(
+                          text: 'M',
+                          style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFFE93A56)),
+                        ),
+                        TextSpan(text: 'arket untuk '),
+                        TextSpan(
+                          text: 'P',
+                          style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFFE93A56)),
+                        ),
+                        TextSpan(text: 'erhitungan '),
+                        TextSpan(
+                          text: 'U',
+                          style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFFE93A56)),
+                        ),
+                        TextSpan(text: 'ntung & '),
+                        TextSpan(
+                          text: 'L',
+                          style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFFE93A56)),
+                        ),
+                        TextSpan(
+                          text: 'oss, yaitu aplikasi yang dirancang untuk membantu pengguna melakukan berbagai perhitungan dalam aktivitas jual beli emas.',
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Expanded(child: _buildAbbrTile('K', 'alkulator')),
+                      const SizedBox(width: 8),
+                      Expanded(child: _buildAbbrTile('I', 'nformasi')),
+                      const SizedBox(width: 8),
+                      Expanded(child: _buildAbbrTile('M', 'arket')),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Expanded(child: _buildAbbrTile('P', 'erhitungan')),
+                      const SizedBox(width: 8),
+                      Expanded(child: _buildAbbrTile('U', 'ntung')),
+                      const SizedBox(width: 8),
+                      Expanded(child: _buildAbbrTile('L', 'oss')),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+
+            // Market Hero Card: Gold Spot
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: const Color(0xFFE2E8F0)),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.03),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      Container(
+                        width: 38,
+                        height: 38,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFFF1F2),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: const Color(0xFFFFE4E6)),
+                        ),
+                        child: const Icon(
+                          Icons.monetization_on_rounded,
+                          color: Color(0xFFE93A56),
+                          size: 20,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
-                          children: const [
-                            Text(
-                              'Tentang KIMPUL',
-                              style: TextStyle(
-                                fontSize: 15,
-                                fontWeight: FontWeight.bold,
-                                color: Color(0xFF0F172A),
-                              ),
+                          children: [
+                            Row(
+                              children: const [
+                                Text(
+                                  'XAU / USD',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.bold,
+                                    color: Color(0xFF0F172A),
+                                  ),
+                                ),
+                                SizedBox(width: 4),
+                                Flexible(
+                                  child: Text(
+                                    'Loco London',
+                                    style: TextStyle(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w600,
+                                      color: Color(0xFF475569),
+                                    ),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              ],
                             ),
-                            Text(
-                              'Identitas Resmi Aplikasi',
+                            const Text(
+                              'Spot Gold Kontrak Fisik',
                               style: TextStyle(
                                 fontSize: 11,
-                                color: Color(0xFF515F74),
+                                color: Color(0xFF64748B),
                               ),
                             ),
                           ],
                         ),
-                      ],
-                    ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: primaryColor.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(12),
                       ),
-                      child: Text(
-                        'K • I • M • P • U • L',
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.bold,
-                          color: primaryColor,
-                          letterSpacing: 1.0,
+                      const SizedBox(width: 4),
+                      Container(
+                        padding: const EdgeInsets.all(2),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF1F5F9),
+                          borderRadius: BorderRadius.circular(8),
                         ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 14),
-                RichText(
-                  text: TextSpan(
-                    style: const TextStyle(fontSize: 12.5, color: Color(0xFF334155), height: 1.5),
-                    children: [
-                      const TextSpan(
-                        text: 'KIMPUL ',
-                        style: TextStyle(fontWeight: FontWeight.bold),
-                      ),
-                      const TextSpan(text: 'merupakan singkatan dari '),
-                      TextSpan(
-                        text: 'K',
-                        style: TextStyle(fontWeight: FontWeight.bold, color: primaryColor),
-                      ),
-                      const TextSpan(text: 'alkulator '),
-                      TextSpan(
-                        text: 'I',
-                        style: TextStyle(fontWeight: FontWeight.bold, color: primaryColor),
-                      ),
-                      const TextSpan(text: 'nformasi '),
-                      TextSpan(
-                        text: 'M',
-                        style: TextStyle(fontWeight: FontWeight.bold, color: primaryColor),
-                      ),
-                      const TextSpan(text: 'arket untuk '),
-                      TextSpan(
-                        text: 'P',
-                        style: TextStyle(fontWeight: FontWeight.bold, color: primaryColor),
-                      ),
-                      const TextSpan(text: 'erhitungan '),
-                      TextSpan(
-                        text: 'U',
-                        style: TextStyle(fontWeight: FontWeight.bold, color: primaryColor),
-                      ),
-                      const TextSpan(text: 'ntung & '),
-                      TextSpan(
-                        text: 'L',
-                        style: TextStyle(fontWeight: FontWeight.bold, color: primaryColor),
-                      ),
-                      const TextSpan(
-                        text: 'oss, yaitu aplikasi yang dirancang untuk membantu pengguna melakukan berbagai perhitungan dalam aktivitas jual beli emas.',
+                        child: Row(
+                          children: ['1D', '1W', '1M'].map((tf) {
+                            final isSelected = _timeframe == tf;
+                            return GestureDetector(
+                              onTap: () => setState(() => _timeframe = tf),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 4,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: isSelected
+                                      ? const Color(0xFF0F172A)
+                                      : Colors.transparent,
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                                child: Text(
+                                  tf,
+                                  style: TextStyle(
+                                    fontSize: 10.5,
+                                    fontWeight: FontWeight.w600,
+                                    color: isSelected
+                                        ? Colors.white
+                                        : const Color(0xFF64748B),
+                                  ),
+                                ),
+                              ),
+                            );
+                          }).toList(),
+                        ),
                       ),
                     ],
                   ),
-                ),
-                const SizedBox(height: 16),
-                Row(
-                  children: [
-                    Expanded(child: _buildAbbrTile('K', 'alkulator')),
-                    const SizedBox(width: 8),
-                    Expanded(child: _buildAbbrTile('I', 'nformasi')),
-                    const SizedBox(width: 8),
-                    Expanded(child: _buildAbbrTile('M', 'arket')),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    Expanded(child: _buildAbbrTile('P', 'erhitungan')),
-                    const SizedBox(width: 8),
-                    Expanded(child: _buildAbbrTile('U', 'ntung')),
-                    const SizedBox(width: 8),
-                    Expanded(child: _buildAbbrTile('L', 'oss')),
-                  ],
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 16),
-
-          // Market Hero Card: Gold Spot
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: const Color(0xFFE2E8F0)),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.03),
-                  blurRadius: 10,
-                  offset: const Offset(0, 4),
-                ),
-              ],
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    Container(
-                      width: 38,
-                      height: 38,
-                      decoration: BoxDecoration(
-                        color: primaryColor, // Latar belakang icon Primary Color
-                        borderRadius: BorderRadius.circular(10),
+                  const SizedBox(height: 16),
+                  Text(
+                    '\$${_goldPrice.toStringAsFixed(2)}',
+                    style: const TextStyle(
+                      fontSize: 32,
+                      fontWeight: FontWeight.w800,
+                      color: Color(0xFF0F172A),
+                      letterSpacing: -1,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Row(
+                    children: [
+                      const Icon(Icons.trending_up_rounded,
+                          color: Color(0xFF059669), size: 18),
+                      const SizedBox(width: 4),
+                      Text(
+                        '+${_goldChangePercent.toStringAsFixed(2)}% (+\$${_goldChangeValue.toStringAsFixed(2)})',
+                        style: const TextStyle(
+                          color: Color(0xFF059669),
+                          fontWeight: FontWeight.w700,
+                          fontSize: 12.5,
+                        ),
                       ),
-                      child: const Icon(
-                        Icons.monetization_on_rounded,
-                        color: Colors.white, // Icon warna Putih
-                        size: 20,
+                      const SizedBox(width: 4),
+                      const Text(
+                        'hari ini',
+                        style: TextStyle(color: Color(0xFF94A3B8), fontSize: 11.5),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  Container(
+                    width: double.infinity,
+                    height: 60,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF8FAFC),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: const Color(0xFFE2E8F0)),
+                    ),
+                    child: Center(
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: const [
+                          Icon(Icons.show_chart_rounded,
+                              color: Color(0xFF059669), size: 18),
+                          SizedBox(width: 6),
+                          Text(
+                            'Grafik Intraday Tren Emas (Positif)',
+                            style: TextStyle(
+                              color: Color(0xFF64748B),
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                  ),
+                  const SizedBox(height: 16),
+                  const Divider(color: Color(0xFFF1F5F9), height: 1),
+                  const SizedBox(height: 12),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceAround,
+                    children: [
+                      _buildMetricItem('Tertinggi 24j', '\$2,352.10'),
+                      _buildMetricItem('Terendah 24j', '\$2,328.40'),
+                      _buildMetricItem('Kurs Acuan', 'Rp 16.240'),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 20),
+
+            // Tombol TradingView
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const TradingViewScreen(),
+                    ),
+                  );
+                },
+                icon: const Icon(Icons.candlestick_chart_rounded, size: 20),
+                label: const Text('Buka Grafik Interaktif TradingView'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF0F172A),
+                  foregroundColor: Colors.white,
+                  elevation: 0,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  textStyle: const TextStyle(
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 24),
+
+            // SECTION: Kalkulasi Cepat
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: const [
+                Text(
+                  'Kalkulasi Cepat',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF0F172A),
+                  ),
+                ),
+                Text(
+                  'Pilih Model',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Color(0xFF64748B),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: _buildQuickCalcCard(
+                    title: 'Pivot Point',
+                    subtitle: 'Level Support &\nResistance intraday...',
+                    btnText: 'Buka Kalkulator',
+                    icon: Icons.calculate_outlined,
+                    onTap: () {
+                      setState(() {
+                        _selectedIndex = 2; // Pindah ke Tab Kalkulator
+                        _selectedCalcView = CalcView.pivot;
+                      });
+                    },
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _buildQuickCalcCard(
+                    title: 'Emas Fisik',
+                    subtitle: 'Estimasi gramatur,\nkarat, cetak & PPh 22.',
+                    btnText: 'Simulasi Fisik',
+                    icon: Icons.account_balance_wallet_outlined,
+                    onTap: () {
+                      setState(() {
+                        _selectedIndex = 2; // Pindah ke Tab Kalkulator
+                        _selectedCalcView = CalcView.gold;
+                      });
+                    },
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 24),
+
+            // SECTION: Perhitungan Terakhir
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  'Perhitungan Terakhir',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF0F172A),
+                  ),
+                ),
+                GestureDetector(
+                  onTap: () {
+                    setState(() {
+                      _selectedIndex = 3; // Pindah ke Navigasi Bar Riwayat
+                    });
+                  },
+                  child: const Text(
+                    'Lihat Semua Riwayat',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF0F172A),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+
+            // Card Hasil Perhitungan Terakhir
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: const Color(0xFFE2E8F0)),
+              ),
+              child: Column(
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Row(
                         children: const [
+                          Icon(Icons.access_time, size: 20, color: Color(0xFF475569)),
+                          SizedBox(width: 8),
                           Text(
-                            'XAU / USD Loco London',
+                            'Pivot Point Harian',
                             style: TextStyle(
-                              fontSize: 13.5,
+                              fontSize: 14,
                               fontWeight: FontWeight.bold,
                               color: Color(0xFF0F172A),
                             ),
                           ),
-                          Text(
-                            'Spot Gold Kontrak Fisik',
-                            style: TextStyle(
-                              fontSize: 11,
-                              color: Color(0xFF515F74),
-                            ),
-                          ),
                         ],
                       ),
-                    ),
-
-                    // STATUS PASAR REAL-TIME
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFF8FAFC),
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: const Color(0xFFE2E8F0)),
+                      const Text(
+                        '02 Sep 2026, 14:30',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: Color(0xFF94A3B8),
+                        ),
                       ),
-                      child: Row(
-                        children: [
-                          Container(
-                            width: 8,
-                            height: 8,
-                            decoration: BoxDecoration(
-                              color: marketActive ? const Color(0xFF10B981) : primaryColor,
-                              shape: BoxShape.circle,
-                            ),
-                          ),
-                          const SizedBox(width: 6),
-                          Text(
-                            marketActive ? 'Pasar Aktif' : 'Pasar Tutup',
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w600,
-                              color: marketActive ? const Color(0xFF059669) : primaryColor,
-                            ),
-                          ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceAround,
+                    children: [
+                      Column(
+                        children: const [
+                          Text('Support 1 (S1)', style: TextStyle(fontSize: 11, color: Color(0xFF64748B))),
+                          SizedBox(height: 4),
+                          Text('2.317,50', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Color(0xFF0F172A))),
                         ],
                       ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-
-                // BOX GRAFIK TRADINGVIEW
-                Container(
-                  width: double.infinity,
-                  height: 200,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFF8FAFC),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: const Color(0xFFE2E8F0)),
+                      Column(
+                        children: const [
+                          Text('Pivot (PP)', style: TextStyle(fontSize: 11, color: Color(0xFFE11D48))),
+                          SizedBox(height: 4),
+                          Text('2.331,50', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Color(0xFFE11D48))),
+                        ],
+                      ),
+                      Column(
+                        children: const [
+                          Text('Resistance 1 (R1)', style: TextStyle(fontSize: 11, color: Color(0xFF64748B))),
+                          SizedBox(height: 4),
+                          Text('2.352,80', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Color(0xFF0F172A))),
+                        ],
+                      ),
+                    ],
                   ),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(12),
-                    child: IgnorePointer(
-                      ignoring: true,
-                      child: WebViewWidget(controller: _miniChartController),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                const Divider(color: Color(0xFFF1F5F9), height: 1),
-                const SizedBox(height: 12),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceAround,
-                  children: [
-                    _buildMetricItem('Tertinggi 24j', '\$2,352.10'),
-                    _buildMetricItem('Terendah 24j', '\$2,328.40'),
-                    _buildMetricItem('Kurs Acuan', 'Rp 16.240'),
-                  ],
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 20),
-
-          // Tombol TradingView Full (Dominan Primary Color)
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton.icon(
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const TradingViewScreen(),
-                  ),
-                );
-              },
-              icon: const Icon(Icons.candlestick_chart_rounded, size: 20, color: Colors.white),
-              label: const Text('Buka Grafik Interaktif TradingView'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: primaryColor, // Menggunakan Primary Color
-                foregroundColor: Colors.white,
-                elevation: 0,
-                padding: const EdgeInsets.symmetric(vertical: 14),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                textStyle: const TextStyle(
-                  fontSize: 13.5,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(height: 24),
-
-          // SECTION: Kalkulasi Cepat
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: const [
-              Text(
-                'Kalkulasi Cepat',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF0F172A),
-                ),
-              ),
-              Text(
-                'Pilih Model',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Color(0xFF515F74),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                child: _buildQuickCalcCard(
-                  title: 'Pivot Point',
-                  subtitle: 'Level Support &\nResistance intraday...',
-                  btnText: 'Buka Kalkulator',
-                  icon: Icons.calculate_outlined,
-                  onTap: () {
-                    setState(() {
-                      _selectedIndex = 2;
-                      _selectedCalcView = CalcView.pivot;
-                    });
-                  },
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _buildQuickCalcCard(
-                  title: 'Emas Fisik',
-                  subtitle: 'Estimasi gramatur,\nkarat, cetak & PPh 22.',
-                  btnText: 'Simulasi Fisik',
-                  icon: Icons.account_balance_wallet_outlined,
-                  onTap: () {
-                    setState(() {
-                      _selectedIndex = 2;
-                      _selectedCalcView = CalcView.gold;
-                    });
-                  },
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 24),
-
-          // SECTION: Perhitungan Terakhir
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text(
-                'Perhitungan Terakhir',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF0F172A),
-                ),
-              ),
-              GestureDetector(
-                onTap: () {
-                  setState(() {
-                    _selectedIndex = 3;
-                  });
-                },
-                child: Text(
-                  'Lihat Semua Riwayat',
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: primaryColor,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-
-          // Card Hasil Perhitungan Terakhir
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: const Color(0xFFE2E8F0)),
-            ),
-            child: Column(
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Row(
+                  const SizedBox(height: 16),
+                  const Divider(color: Color(0xFFF1F5F9), height: 1),
+                  const SizedBox(height: 12),
+                  InkWell(
+                    onTap: () {
+                      setState(() {
+                        _selectedIndex = 3; // Pindah ke Riwayat
+                      });
+                    },
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: const [
-                        Icon(Icons.access_time, size: 20, color: Color(0xFF515F74)),
-                        SizedBox(width: 8),
                         Text(
-                          'Pivot Point Harian',
+                          'Buka rincian kalkulasi',
                           style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.bold,
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w600,
                             color: Color(0xFF0F172A),
                           ),
                         ),
+                        Icon(Icons.chevron_right_rounded, size: 20, color: Color(0xFF0F172A)),
                       ],
                     ),
-                    const Text(
-                      '02 Sep 2026, 14:30',
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: Color(0xFF515F74),
-                      ),
-                    ),
-                  ],
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 24),
+
+            // SECTION: Kabar Emas Terkini
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: const [
+                Text(
+                  'Kabar Emas Terkini',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF0F172A),
+                  ),
                 ),
-                const SizedBox(height: 16),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceAround,
-                  children: [
-                    Column(
-                      children: const [
-                        Text('Support 1 (S1)', style: TextStyle(fontSize: 11, color: Color(0xFF515F74))),
-                        SizedBox(height: 4),
-                        Text('2.317,50', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Color(0xFF0F172A))),
-                      ],
-                    ),
-                    Column(
-                      children: [
-                        const Text('Pivot (PP)', style: TextStyle(fontSize: 11, color: Color(0xFF515F74))),
-                        const SizedBox(height: 4),
-                        Text('2.331,50', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: primaryColor)),
-                      ],
-                    ),
-                    Column(
-                      children: const [
-                        Text('Resistance 1 (R1)', style: TextStyle(fontSize: 11, color: Color(0xFF515F74))),
-                        SizedBox(height: 4),
-                        Text('2.352,80', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Color(0xFF0F172A))),
-                      ],
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                const Divider(color: Color(0xFFF1F5F9), height: 1),
-                const SizedBox(height: 12),
-                InkWell(
-                  onTap: () {
-                    setState(() {
-                      _selectedIndex = 3;
-                    });
-                  },
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        'Buka rincian kalkulasi',
-                        style: TextStyle(
-                          fontSize: 12.5,
-                          fontWeight: FontWeight.w600,
-                          color: primaryColor,
-                        ),
-                      ),
-                      Icon(Icons.chevron_right_rounded, size: 20, color: primaryColor),
-                    ],
+                Text(
+                  'Wawasan Pasar',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Color(0xFF64748B),
                   ),
                 ),
               ],
             ),
-          ),
-          const SizedBox(height: 24),
+            const SizedBox(height: 12),
 
-          // SECTION: Kabar Emas Terkini
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: const [
-              Text(
-                'Kabar Emas Terkini',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF0F172A),
-                ),
-              ),
-              Text(
-                'Wawasan Pasar',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Color(0xFF515F74),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-
-          // News Card Items
-          _buildHomeNewsTile(
-            title: 'Emas Mendekati Level Tertinggi Sepanjang Masa di Tengah...',
-            source: 'TradingView Newsroom',
-            timeAgo: '12m lalu',
-            tag: 'BULLISH',
-            tagColor: const Color(0xFF059669),
-            tagBg: const Color(0xFFECFDF5),
-            imageUrl: 'https://images.unsplash.com/photo-1610375461246-83df859d849d?auto=format&fit=crop&w=600&q=80',
-            onTap: () {
-              setState(() {
-                _selectedIndex = 1;
-              });
-            },
-          ),
-          const SizedBox(height: 12),
-          _buildHomeNewsTile(
-            title: 'Analisis Teknikal XAU/USD: Pola Breakout Menguji Resistance...',
-            source: 'TradingView / Analyst',
-            timeAgo: '28m lalu',
-            tag: 'ANALISIS',
-            tagColor: primaryColor,
-            tagBg: primaryColor.withValues(alpha: 0.1),
-            imageUrl: 'https://images.unsplash.com/photo-1590283603385-17ffb3a7f29f?auto=format&fit=crop&w=600&q=80',
-            onTap: () {
-              setState(() {
-                _selectedIndex = 1;
-              });
-            },
-          ),
-        ],
+            // News Card Items (Masing-masing bisa diklik menuju tab Berita)
+            _buildHomeNewsTile(
+              title: 'Emas Mendekati Level Tertinggi Sepanjang Masa di Tengah...',
+              source: 'TradingView Newsroom',
+              timeAgo: '12m lalu',
+              tag: 'BULLISH',
+              tagColor: const Color(0xFF059669),
+              tagBg: const Color(0xFFECFDF5),
+              imageUrl: 'https://images.unsplash.com/photo-1610375461246-83df859d849d?auto=format&fit=crop&w=600&q=80',
+              onTap: () {
+                setState(() {
+                  _selectedIndex = 1; // Pindah ke Navigasi Bar Berita
+                });
+              },
+            ),
+            const SizedBox(height: 12),
+            _buildHomeNewsTile(
+              title: 'Analisis Teknikal XAU/USD: Pola Breakout Menguji Resistance...',
+              source: 'TradingView / Analyst',
+              timeAgo: '28m lalu',
+              tag: 'ANALISIS',
+              tagColor: const Color(0xFFE93A56),
+              tagBg: const Color(0xFFFFF1F2),
+              imageUrl: 'https://images.unsplash.com/photo-1590283603385-17ffb3a7f29f?auto=format&fit=crop&w=600&q=80',
+              onTap: () {
+                setState(() {
+                  _selectedIndex = 1; // Pindah ke Navigasi Bar Berita
+                });
+              },
+            ),
+          ],
+        ),
       ),
     );
   }
 
+  // Card Widget untuk Kalkulasi Cepat
   Widget _buildQuickCalcCard({
     required String title,
     required String subtitle,
@@ -722,8 +785,6 @@ class _HomeScreenState extends State<HomeScreen> {
     required IconData icon,
     required VoidCallback onTap,
   }) {
-    final primaryColor = Theme.of(context).colorScheme.primary;
-
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(16),
@@ -740,10 +801,11 @@ class _HomeScreenState extends State<HomeScreen> {
             Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: primaryColor, // Background Primary Color
+                color: const Color(0xFFF8FAFC),
                 borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: const Color(0xFFE2E8F0)),
               ),
-              child: Icon(icon, color: Colors.white, size: 20), // Icon Putih
+              child: Icon(icon, color: const Color(0xFF0F172A), size: 22),
             ),
             const SizedBox(height: 12),
             Text(
@@ -759,7 +821,7 @@ class _HomeScreenState extends State<HomeScreen> {
               subtitle,
               style: const TextStyle(
                 fontSize: 11,
-                color: Color(0xFF515F74),
+                color: Color(0xFF64748B),
                 height: 1.3,
               ),
             ),
@@ -768,14 +830,14 @@ class _HomeScreenState extends State<HomeScreen> {
               children: [
                 Text(
                   btnText,
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.bold,
-                    color: primaryColor,
+                    color: Color(0xFF0F172A),
                   ),
                 ),
                 const SizedBox(width: 4),
-                Icon(Icons.arrow_forward_rounded, size: 16, color: primaryColor),
+                const Icon(Icons.arrow_forward_rounded, size: 16, color: Color(0xFF0F172A)),
               ],
             ),
           ],
@@ -784,6 +846,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  // Widget Tile Berita di Home
   Widget _buildHomeNewsTile({
     required String title,
     required String source,
@@ -860,7 +923,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     '$source • $timeAgo',
                     style: const TextStyle(
                       fontSize: 10.5,
-                      color: Color(0xFF515F74),
+                      color: Color(0xFF64748B),
                     ),
                   ),
                 ],
@@ -873,8 +936,6 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildAbbrTile(String letter, String word) {
-    final primaryColor = Theme.of(context).colorScheme.primary;
-
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 8),
       decoration: BoxDecoration(
@@ -886,13 +947,13 @@ class _HomeScreenState extends State<HomeScreen> {
         child: RichText(
           textAlign: TextAlign.center,
           text: TextSpan(
-            style: const TextStyle(fontSize: 11.5, color: Color(0xFF515F74)),
+            style: const TextStyle(fontSize: 11.5, color: Color(0xFF475569)),
             children: [
               TextSpan(
                 text: '$letter ',
-                style: TextStyle(
+                style: const TextStyle(
                   fontWeight: FontWeight.bold,
-                  color: primaryColor,
+                  color: Color(0xFFE93A56),
                 ),
               ),
               TextSpan(text: word),
@@ -951,8 +1012,6 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final primaryColor = Theme.of(context).colorScheme.primary;
-
     final List<Widget> screens = [
       _buildHomeTab(),
       NewsScreen(
@@ -974,17 +1033,13 @@ class _HomeScreenState extends State<HomeScreen> {
         user: _userProfile,
         onOpenEditProfile: () {},
         onOpenChangePassword: () {},
-        onRequestLogout: () {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Berhasil keluar akun')),
-          );
-        },
+        onRequestLogout: _handleLogout, // <-- diarahkan ke fungsi logout
         onShowToast: (msg) {},
       ),
     ];
 
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: const Color(0xFFF8FAFC),
       appBar: HeaderWidget(
         onOpenNotifications: () {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -1001,8 +1056,10 @@ class _HomeScreenState extends State<HomeScreen> {
         onTap: _onTabTapped,
         type: BottomNavigationBarType.fixed,
         backgroundColor: Colors.white,
-        selectedItemColor: primaryColor,
-        unselectedItemColor: const Color(0xFF515F74),
+        selectedItemColor: const Color(0xFF0F172A),
+        unselectedItemColor: const Color(0xFF94A3B8),
+        selectedFontSize: 11.5,
+        unselectedFontSize: 11.5,
         items: const [
           BottomNavigationBarItem(
             icon: Icon(Icons.home_outlined),
@@ -1041,7 +1098,7 @@ class _HomeScreenState extends State<HomeScreen> {
           label,
           style: const TextStyle(
             fontSize: 11,
-            color: Color(0xFF515F74),
+            color: Color(0xFF64748B),
             fontWeight: FontWeight.w500,
           ),
         ),

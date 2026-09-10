@@ -50,7 +50,7 @@ class HistoryScreen extends StatefulWidget {
 }
 
 class _HistoryScreenState extends State<HistoryScreen> {
-  String _activeFilter = 'all'; // 'all', 'pivot', 'gold', 'month'
+  String _activeFilter = 'all'; // 'all', 'pivot', 'gold'
   bool _isRefreshing = false;
 
   void _handleRefresh() async {
@@ -78,7 +78,6 @@ class _HistoryScreenState extends State<HistoryScreen> {
       if (_activeFilter == 'all') return true;
       if (_activeFilter == 'pivot') return item.type == 'pivot';
       if (_activeFilter == 'gold') return item.type == 'gold';
-      if (_activeFilter == 'month') return item.formattedDate.contains('Sep');
       return true;
     }).toList();
   }
@@ -172,13 +171,6 @@ class _HistoryScreenState extends State<HistoryScreen> {
                   id: 'gold',
                   label: 'Emas Fisik',
                   icon: Icons.view_in_ar_rounded,
-                  primaryColor: primaryColor,
-                ),
-                const SizedBox(width: 6),
-                _buildFilterChip(
-                  id: 'month',
-                  label: 'Bulan Ini',
-                  icon: Icons.calendar_today_rounded,
                   primaryColor: primaryColor,
                 ),
               ],
