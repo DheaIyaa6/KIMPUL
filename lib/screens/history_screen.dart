@@ -85,6 +85,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final primaryColor = Theme.of(context).colorScheme.primary;
     final filtered = _filteredItems;
 
     return SingleChildScrollView(
@@ -136,10 +137,10 @@ class _HistoryScreenState extends State<HistoryScreen> {
                   child: AnimatedRotation(
                     turns: _isRefreshing ? 1 : 0,
                     duration: const Duration(milliseconds: 500),
-                    child: const Icon(
+                    child: Icon(
                       Icons.cached_rounded,
                       size: 18,
-                      color: Color(0xFF64748B),
+                      color: primaryColor,
                     ),
                   ),
                 ),
@@ -157,24 +158,28 @@ class _HistoryScreenState extends State<HistoryScreen> {
                   id: 'all',
                   label: 'Semua',
                   count: widget.historyItems.length,
+                  primaryColor: primaryColor,
                 ),
                 const SizedBox(width: 6),
                 _buildFilterChip(
                   id: 'pivot',
                   label: 'Pivot Point',
                   icon: Icons.show_chart_rounded,
+                  primaryColor: primaryColor,
                 ),
                 const SizedBox(width: 6),
                 _buildFilterChip(
                   id: 'gold',
                   label: 'Emas Fisik',
                   icon: Icons.view_in_ar_rounded,
+                  primaryColor: primaryColor,
                 ),
                 const SizedBox(width: 6),
                 _buildFilterChip(
                   id: 'month',
                   label: 'Bulan Ini',
                   icon: Icons.calendar_today_rounded,
+                  primaryColor: primaryColor,
                 ),
               ],
             ),
@@ -193,9 +198,9 @@ class _HistoryScreenState extends State<HistoryScreen> {
               itemBuilder: (context, index) {
                 final item = filtered[index];
                 if (item.type == 'pivot') {
-                  return _buildPivotCard(item);
+                  return _buildPivotCard(item, primaryColor);
                 } else {
-                  return _buildGoldCard(item);
+                  return _buildGoldCard(item, primaryColor);
                 }
               },
             ),
@@ -207,11 +212,12 @@ class _HistoryScreenState extends State<HistoryScreen> {
   Widget _buildFilterChip({
     required String id,
     required String label,
+    required Color primaryColor,
     IconData? icon,
     int? count,
   }) {
     final bool isActive = _activeFilter == id;
-    final Color activeBg = const Color(0xFF0F172A);
+    final Color activeBg = primaryColor;
     final Color activeText = Colors.white;
     final Color inactiveBg = Colors.white;
     final Color inactiveText = const Color(0xFF64748B);
@@ -276,7 +282,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
     );
   }
 
-  Widget _buildPivotCard(HistoryItem item) {
+  Widget _buildPivotCard(HistoryItem item, Color primaryColor) {
     final bool isBullish = item.bias == 'bullish';
     final bool isBearish = item.bias == 'bearish';
 
@@ -291,9 +297,9 @@ class _HistoryScreenState extends State<HistoryScreen> {
       biasBorder = const Color(0xFFA7F3D0);
       biasIcon = Icons.trending_up_rounded;
     } else if (isBearish) {
-      biasBg = const Color(0xFFFFF1F2);
-      biasText = const Color(0xFFBE123C);
-      biasBorder = const Color(0xFFFECDD3);
+      biasBg = primaryColor.withValues(alpha: 0.1);
+      biasText = primaryColor;
+      biasBorder = primaryColor.withValues(alpha: 0.3);
       biasIcon = Icons.trending_down_rounded;
     }
 
@@ -316,20 +322,20 @@ class _HistoryScreenState extends State<HistoryScreen> {
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFF8FAFC),
+                      color: primaryColor.withValues(alpha: 0.08),
                       borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: const Color(0xFFE2E8F0)),
+                      border: Border.all(color: primaryColor.withValues(alpha: 0.2)),
                     ),
                     child: Row(
-                      children: const [
-                        Icon(Icons.show_chart_rounded, size: 14, color: Color(0xFF0F172A)),
-                        SizedBox(width: 4),
+                      children: [
+                        Icon(Icons.show_chart_rounded, size: 14, color: primaryColor),
+                        const SizedBox(width: 4),
                         Text(
                           'Pivot Point',
                           style: TextStyle(
                             fontSize: 11,
                             fontWeight: FontWeight.w600,
-                            color: Color(0xFF0F172A),
+                            color: primaryColor,
                           ),
                         ),
                       ],
@@ -430,7 +436,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                       const SizedBox(height: 2),
                       Text(
                         item.pp?.toStringAsFixed(2) ?? '0.00',
-                        style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.bold, color: Color(0xFF0F172A)),
+                        style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.bold, color: primaryColor),
                       ),
                     ],
                   ),
@@ -445,9 +451,9 @@ class _HistoryScreenState extends State<HistoryScreen> {
                     ),
                     child: Column(
                       children: [
-                        const Text(
+                        Text(
                           'RESIST 1 (R1)',
-                          style: TextStyle(fontSize: 10.5, color: Color(0xFFBE123C), fontWeight: FontWeight.w600),
+                          style: TextStyle(fontSize: 10.5, color: primaryColor, fontWeight: FontWeight.w600),
                         ),
                         const SizedBox(height: 2),
                         Text(
@@ -484,12 +490,11 @@ class _HistoryScreenState extends State<HistoryScreen> {
               Expanded(
                 child: OutlinedButton.icon(
                   onPressed: () => widget.onOpenDetailModal(item),
-                  icon: const Icon(Icons.visibility_outlined, size: 16),
-                  label: const Text('Rincian'),
+                  icon: Icon(Icons.visibility_outlined, size: 16, color: primaryColor),
+                  label: Text('Rincian', style: TextStyle(color: primaryColor)),
                   style: OutlinedButton.styleFrom(
-                    foregroundColor: const Color(0xFF0F172A),
-                    backgroundColor: const Color(0xFFF8FAFC),
-                    side: const BorderSide(color: Color(0xFFE2E8F0)),
+                    backgroundColor: Colors.white,
+                    side: BorderSide(color: primaryColor.withValues(alpha: 0.3)),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   ),
                 ),
@@ -502,7 +507,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                   label: const Text('Hitung Ulang'),
                   style: ElevatedButton.styleFrom(
                     foregroundColor: Colors.white,
-                    backgroundColor: const Color(0xFF0F172A),
+                    backgroundColor: primaryColor,
                     elevation: 0,
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   ),
@@ -515,7 +520,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
     );
   }
 
-  Widget _buildGoldCard(HistoryItem item) {
+  Widget _buildGoldCard(HistoryItem item, Color primaryColor) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -535,20 +540,20 @@ class _HistoryScreenState extends State<HistoryScreen> {
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFF8FAFC),
+                      color: primaryColor.withValues(alpha: 0.08),
                       borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: const Color(0xFFE2E8F0)),
+                      border: Border.all(color: primaryColor.withValues(alpha: 0.2)),
                     ),
                     child: Row(
-                      children: const [
-                        Icon(Icons.view_in_ar_rounded, size: 14, color: Color(0xFF0F172A)),
-                        SizedBox(width: 4),
+                      children: [
+                        Icon(Icons.view_in_ar_rounded, size: 14, color: primaryColor),
+                        const SizedBox(width: 4),
                         Text(
                           'Emas Fisik',
                           style: TextStyle(
                             fontSize: 11,
                             fontWeight: FontWeight.w600,
-                            color: Color(0xFF0F172A),
+                            color: primaryColor,
                           ),
                         ),
                       ],
@@ -646,10 +651,10 @@ class _HistoryScreenState extends State<HistoryScreen> {
                 const SizedBox(height: 2),
                 Text(
                   'Rp ${(item.grandTotal ?? 0).toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]}.')}',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 20,
                     fontWeight: FontWeight.w800,
-                    color: Color(0xFF0F172A),
+                    color: primaryColor,
                     letterSpacing: -0.5,
                   ),
                 ),
@@ -664,12 +669,11 @@ class _HistoryScreenState extends State<HistoryScreen> {
               Expanded(
                 child: OutlinedButton.icon(
                   onPressed: () => widget.onOpenDetailModal(item),
-                  icon: const Icon(Icons.visibility_outlined, size: 16),
-                  label: const Text('Rincian'),
+                  icon: Icon(Icons.visibility_outlined, size: 16, color: primaryColor),
+                  label: Text('Rincian', style: TextStyle(color: primaryColor)),
                   style: OutlinedButton.styleFrom(
-                    foregroundColor: const Color(0xFF0F172A),
-                    backgroundColor: const Color(0xFFF8FAFC),
-                    side: const BorderSide(color: Color(0xFFE2E8F0)),
+                    backgroundColor: Colors.white,
+                    side: BorderSide(color: primaryColor.withValues(alpha: 0.3)),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   ),
                 ),
@@ -682,7 +686,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                   label: const Text('Hitung Ulang'),
                   style: ElevatedButton.styleFrom(
                     foregroundColor: Colors.white,
-                    backgroundColor: const Color(0xFF0F172A),
+                    backgroundColor: primaryColor,
                     elevation: 0,
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   ),

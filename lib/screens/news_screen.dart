@@ -120,9 +120,10 @@ class _NewsScreenState extends State<NewsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final primaryColor = Theme.of(context).colorScheme.primary;
     final filtered = _filteredNews;
-    
-    // Penanganan featured article yang aman dari error null
+
+    // Penanganan featured article
     NewsItem? featuredArticle;
     for (final n in widget.newsItems) {
       if (n.featured) {
@@ -144,8 +145,7 @@ class _NewsScreenState extends State<NewsScreen> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(
                   color: const Color(0xFFF8FAFC),
                   borderRadius: BorderRadius.circular(20),
@@ -176,14 +176,14 @@ class _NewsScreenState extends State<NewsScreen> {
               ),
               Row(
                 children: const [
-                  Icon(Icons.update_rounded, size: 15, color: Color(0xFF64748B)),
+                  Icon(Icons.update_rounded, size: 15, color: Color(0xFF515F74)),
                   SizedBox(width: 4),
                   Text(
                     'Real-time Feed',
                     style: TextStyle(
                       fontSize: 11.5,
                       fontWeight: FontWeight.w500,
-                      color: Color(0xFF64748B),
+                      color: Color(0xFF515F74),
                     ),
                   ),
                 ],
@@ -203,24 +203,21 @@ class _NewsScreenState extends State<NewsScreen> {
           const SizedBox(height: 2),
           const Text(
             'Sentimen pasar terkini dan katalis fundamental komoditas emas XAU/USD.',
-            style: TextStyle(fontSize: 13, color: Color(0xFF64748B)),
+            style: TextStyle(fontSize: 13, color: Color(0xFF515F74)),
           ),
           const SizedBox(height: 16),
 
-          // Search Field
+          // Search Field (Focused Border -> Primary Color)
           TextField(
             controller: _searchController,
             style: const TextStyle(fontSize: 13, color: Color(0xFF0F172A)),
             decoration: InputDecoration(
               hintText: 'Cari berita komoditas, pasar, atau The Fed...',
-              hintStyle:
-                  const TextStyle(fontSize: 13, color: Color(0xFF94A3B8)),
-              prefixIcon:
-                  const Icon(Icons.search_rounded, size: 20, color: Color(0xFF94A3B8)),
+              hintStyle: const TextStyle(fontSize: 13, color: Color(0xFF94A3B8)),
+              prefixIcon: const Icon(Icons.search_rounded, size: 20, color: Color(0xFF94A3B8)),
               suffixIcon: _searchQuery.isNotEmpty
                   ? IconButton(
-                      icon: const Icon(Icons.close_rounded,
-                          size: 18, color: Color(0xFF94A3B8)),
+                      icon: const Icon(Icons.close_rounded, size: 18, color: Color(0xFF94A3B8)),
                       onPressed: () {
                         _searchController.clear();
                       },
@@ -235,13 +232,13 @@ class _NewsScreenState extends State<NewsScreen> {
               ),
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
-                borderSide: const BorderSide(color: Color(0xFF0F172A)),
+                borderSide: BorderSide(color: primaryColor, width: 1.5),
               ),
             ),
           ),
           const SizedBox(height: 10),
 
-          // Category Chips Scroller
+          // Category Chips Scroller (Aktif -> Primary Color)
           SingleChildScrollView(
             scrollDirection: Axis.horizontal,
             child: Row(
@@ -257,17 +254,12 @@ class _NewsScreenState extends State<NewsScreen> {
                     },
                     borderRadius: BorderRadius.circular(12),
                     child: Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 14, vertical: 8),
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                       decoration: BoxDecoration(
-                        color: isActive
-                            ? const Color(0xFF0F172A)
-                            : Colors.white,
+                        color: isActive ? primaryColor : Colors.white,
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(
-                          color: isActive
-                              ? const Color(0xFF0F172A)
-                              : const Color(0xFFE2E8F0),
+                          color: isActive ? primaryColor : const Color(0xFFE2E8F0),
                         ),
                       ),
                       child: Text(
@@ -275,9 +267,7 @@ class _NewsScreenState extends State<NewsScreen> {
                         style: TextStyle(
                           fontSize: 12.5,
                           fontWeight: FontWeight.w600,
-                          color: isActive
-                              ? Colors.white
-                              : const Color(0xFF64748B),
+                          color: isActive ? Colors.white : const Color(0xFF515F74),
                         ),
                       ),
                     ),
@@ -308,7 +298,7 @@ class _NewsScreenState extends State<NewsScreen> {
                           Text('SPOT GOLD (XAU)',
                               style: TextStyle(
                                   fontSize: 10.5,
-                                  color: Color(0xFF64748B),
+                                  color: Color(0xFF515F74),
                                   fontWeight: FontWeight.w600)),
                           SizedBox(height: 2),
                           Text('\$2,348.60',
@@ -319,13 +309,11 @@ class _NewsScreenState extends State<NewsScreen> {
                         ],
                       ),
                       Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 6, vertical: 2),
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                         decoration: BoxDecoration(
                           color: const Color(0xFFECFDF5),
                           borderRadius: BorderRadius.circular(20),
-                          border:
-                              Border.all(color: const Color(0xFFA7F3D0)),
+                          border: Border.all(color: const Color(0xFFA7F3D0)),
                         ),
                         child: const Text('+1.42%',
                             style: TextStyle(
@@ -355,7 +343,7 @@ class _NewsScreenState extends State<NewsScreen> {
                           Text('USD/IDR KURS',
                               style: TextStyle(
                                   fontSize: 10.5,
-                                  color: Color(0xFF64748B),
+                                  color: Color(0xFF515F74),
                                   fontWeight: FontWeight.w600)),
                           SizedBox(height: 2),
                           Text('Rp 16.240',
@@ -366,19 +354,17 @@ class _NewsScreenState extends State<NewsScreen> {
                         ],
                       ),
                       Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 6, vertical: 2),
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                         decoration: BoxDecoration(
-                          color: const Color(0xFFFFF1F2),
+                          color: primaryColor.withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(20),
-                          border:
-                              Border.all(color: const Color(0xFFFECDD3)),
+                          border: Border.all(color: primaryColor.withValues(alpha: 0.3)),
                         ),
-                        child: const Text('-0.18%',
+                        child: Text('-0.18%',
                             style: TextStyle(
                                 fontSize: 11,
                                 fontWeight: FontWeight.bold,
-                                color: Color(0xFFBE123C))),
+                                color: primaryColor)),
                       ),
                     ],
                   ),
@@ -400,7 +386,7 @@ class _NewsScreenState extends State<NewsScreen> {
                     style: TextStyle(
                         fontSize: 11.5,
                         fontWeight: FontWeight.bold,
-                        color: Color(0xFF64748B),
+                        color: Color(0xFF515F74),
                         letterSpacing: 0.5)),
                 Text('Pilihan Editor',
                     style: TextStyle(
@@ -425,8 +411,7 @@ class _NewsScreenState extends State<NewsScreen> {
                     Stack(
                       children: [
                         ClipRRect(
-                          borderRadius: const BorderRadius.vertical(
-                              top: Radius.circular(16)),
+                          borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
                           child: SizedBox(
                             height: 180,
                             width: double.infinity,
@@ -441,8 +426,7 @@ class _NewsScreenState extends State<NewsScreen> {
                         Positioned.fill(
                           child: Container(
                             decoration: BoxDecoration(
-                              borderRadius: const BorderRadius.vertical(
-                                  top: Radius.circular(16)),
+                              borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
                               gradient: LinearGradient(
                                 begin: Alignment.topCenter,
                                 end: Alignment.bottomCenter,
@@ -458,11 +442,9 @@ class _NewsScreenState extends State<NewsScreen> {
                           top: 12,
                           left: 12,
                           child: Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 10, vertical: 4),
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                             decoration: BoxDecoration(
-                              color: const Color(0xFF0F172A)
-                                  .withValues(alpha: 0.9),
+                              color: primaryColor,
                               borderRadius: BorderRadius.circular(20),
                             ),
                             child: const Text('Utama',
@@ -476,8 +458,7 @@ class _NewsScreenState extends State<NewsScreen> {
                           top: 12,
                           right: 12,
                           child: Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 10, vertical: 4),
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                             decoration: BoxDecoration(
                               color: Colors.white,
                               borderRadius: BorderRadius.circular(20),
@@ -518,7 +499,7 @@ class _NewsScreenState extends State<NewsScreen> {
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
                                 fontSize: 13,
-                                color: Color(0xFF64748B),
+                                color: Color(0xFF515F74),
                                 height: 1.4),
                           ),
                           const SizedBox(height: 12),
@@ -528,17 +509,17 @@ class _NewsScreenState extends State<NewsScreen> {
                               Text(
                                 '${featuredArticle.source} • ${featuredArticle.timeAgo}',
                                 style: const TextStyle(
-                                    fontSize: 11.5, color: Color(0xFF64748B)),
+                                    fontSize: 11.5, color: Color(0xFF515F74)),
                               ),
                               Row(
                                 children: [
                                   const Icon(Icons.schedule_rounded,
-                                      size: 14, color: Color(0xFF64748B)),
+                                      size: 14, color: Color(0xFF515F74)),
                                   const SizedBox(width: 4),
                                   Text(
                                     featuredArticle.readTime,
                                     style: const TextStyle(
-                                        fontSize: 11.5, color: Color(0xFF64748B)),
+                                        fontSize: 11.5, color: Color(0xFF515F74)),
                                   ),
                                 ],
                               ),
@@ -562,7 +543,7 @@ class _NewsScreenState extends State<NewsScreen> {
                   style: TextStyle(
                       fontSize: 11.5,
                       fontWeight: FontWeight.bold,
-                      color: Color(0xFF64748B),
+                      color: Color(0xFF515F74),
                       letterSpacing: 0.5)),
               Text('Terbaru',
                   style: TextStyle(
@@ -611,30 +592,27 @@ class _NewsScreenState extends State<NewsScreen> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Row(
-                              mainAxisAlignment:
-                                  MainAxisAlignment.spaceBetween,
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
                                 Container(
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 8, vertical: 2),
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                                   decoration: BoxDecoration(
-                                    color: const Color(0xFFF8FAFC),
+                                    color: primaryColor.withValues(alpha: 0.08),
                                     borderRadius: BorderRadius.circular(12),
-                                    border: Border.all(
-                                        color: const Color(0xFFE2E8F0)),
+                                    border: Border.all(color: primaryColor.withValues(alpha: 0.2)),
                                   ),
                                   child: Text(
                                     article.category,
-                                    style: const TextStyle(
+                                    style: TextStyle(
                                         fontSize: 10.5,
-                                        fontWeight: FontWeight.w600, // Diperbaiki dari semibold
-                                        color: Color(0xFF475569)),
+                                        fontWeight: FontWeight.w600,
+                                        color: primaryColor),
                                   ),
                                 ),
                                 Text(
                                   article.timeAgo,
                                   style: const TextStyle(
-                                      fontSize: 10.5, color: Color(0xFF64748B)),
+                                      fontSize: 10.5, color: Color(0xFF515F74)),
                                 ),
                               ],
                             ),
@@ -645,32 +623,29 @@ class _NewsScreenState extends State<NewsScreen> {
                               overflow: TextOverflow.ellipsis,
                               style: const TextStyle(
                                 fontSize: 13.5,
-                                fontWeight: FontWeight.w600, // Diperbaiki dari semibold
+                                fontWeight: FontWeight.w600,
                                 color: Color(0xFF0F172A),
                                 height: 1.25,
                               ),
                             ),
                             const SizedBox(height: 6),
                             Row(
-                              mainAxisAlignment:
-                                  MainAxisAlignment.spaceBetween,
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
                                 Expanded(
                                   child: Text(
                                     article.source,
                                     overflow: TextOverflow.ellipsis,
                                     style: const TextStyle(
-                                        fontSize: 11, color: Color(0xFF64748B)),
+                                        fontSize: 11, color: Color(0xFF515F74)),
                                   ),
                                 ),
                                 Container(
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 8, vertical: 2),
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                                   decoration: BoxDecoration(
                                     color: const Color(0xFFF8FAFC),
                                     borderRadius: BorderRadius.circular(12),
-                                    border: Border.all(
-                                        color: const Color(0xFFE2E8F0)),
+                                    border: Border.all(color: const Color(0xFFE2E8F0)),
                                   ),
                                   child: Text(
                                     article.tagType,
@@ -697,11 +672,11 @@ class _NewsScreenState extends State<NewsScreen> {
             const SizedBox(height: 12),
             SizedBox(
               width: double.infinity,
-              child: OutlinedButton(
+              child: ElevatedButton(
                 onPressed: _isLoadingMore ? null : _handleLoadMore,
-                style: OutlinedButton.styleFrom(
-                  backgroundColor: Colors.white,
-                  side: const BorderSide(color: Color(0xFFE2E8F0)),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: primaryColor,
+                  foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(vertical: 12),
                   shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12)),
@@ -714,27 +689,27 @@ class _NewsScreenState extends State<NewsScreen> {
                             width: 16,
                             height: 16,
                             child: CircularProgressIndicator(
-                                strokeWidth: 2, color: Color(0xFF0F172A)),
+                                strokeWidth: 2, color: Colors.white),
                           ),
                           SizedBox(width: 8),
                           Text('Memuat berita...',
                               style: TextStyle(
                                   fontSize: 13,
-                                  fontWeight: FontWeight.w600, // Diperbaiki dari semibold
-                                  color: Color(0xFF0F172A))),
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.white)),
                         ],
                       )
                     : Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: const [
                           Icon(Icons.expand_more_rounded,
-                              size: 18, color: Color(0xFF0F172A)),
+                              size: 18, color: Colors.white),
                           SizedBox(width: 4),
                           Text('Muat Lebih Banyak Berita',
                               style: TextStyle(
                                   fontSize: 13,
-                                  fontWeight: FontWeight.w600, // Diperbaiki dari semibold
-                                  color: Color(0xFF0F172A))),
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.white)),
                         ],
                       ),
               ),
@@ -768,13 +743,11 @@ class _NewsScreenState extends State<NewsScreen> {
                       ],
                     ),
                     Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 8, vertical: 3),
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                       decoration: BoxDecoration(
                         color: const Color(0xFFECFDF5),
                         borderRadius: BorderRadius.circular(20),
-                        border:
-                            Border.all(color: const Color(0xFFA7F3D0)),
+                        border: Border.all(color: const Color(0xFFA7F3D0)),
                       ),
                       child: const Text('78% Bullish',
                           style: TextStyle(
@@ -801,7 +774,7 @@ class _NewsScreenState extends State<NewsScreen> {
                             child: Container(color: const Color(0xFF94A3B8))),
                         Expanded(
                             flex: 8,
-                            child: Container(color: const Color(0xFFF43F5E))),
+                            child: Container(color: primaryColor)),
                       ],
                     ),
                   ),
@@ -825,7 +798,7 @@ class _NewsScreenState extends State<NewsScreen> {
                     _buildSentimentChip(
                       id: 'bearish',
                       label: 'Bearish (8%)',
-                      color: const Color(0xFFF43F5E),
+                      color: primaryColor,
                     ),
                   ],
                 ),
@@ -853,9 +826,7 @@ class _NewsScreenState extends State<NewsScreen> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
         decoration: BoxDecoration(
-          color: isSelected
-              ? color.withValues(alpha: 0.1)
-              : Colors.transparent,
+          color: isSelected ? color.withValues(alpha: 0.1) : Colors.transparent,
           borderRadius: BorderRadius.circular(8),
           border: Border.all(
             color: isSelected ? color : Colors.transparent,
@@ -874,7 +845,7 @@ class _NewsScreenState extends State<NewsScreen> {
               style: TextStyle(
                 fontSize: 11.5,
                 fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                color: isSelected ? color : const Color(0xFF64748B),
+                color: isSelected ? color : const Color(0xFF515F74),
               ),
             ),
           ],

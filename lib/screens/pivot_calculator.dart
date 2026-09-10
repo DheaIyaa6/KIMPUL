@@ -14,9 +14,11 @@ class PivotCalculation {
   final double r1;
   final double r2;
   final double r3;
+  final double r4;
   final double s1;
   final double s2;
   final double s3;
+  final double s4;
   final String bias; // 'bullish', 'bearish', 'sideway'
   final double diff;
   final String type; // 'pivot'
@@ -34,9 +36,11 @@ class PivotCalculation {
     required this.r1,
     required this.r2,
     required this.r3,
+    required this.r4,
     required this.s1,
     required this.s2,
     required this.s3,
+    required this.s4,
     required this.bias,
     required this.diff,
     this.type = 'pivot',
@@ -108,6 +112,10 @@ class _PivotCalculatorState extends State<PivotCalculator> {
     final double s2 = double.parse((pp - (high - low)).toStringAsFixed(2));
     final double r3 = double.parse((high + 2 * (pp - low)).toStringAsFixed(2));
     final double s3 = double.parse((low - 2 * (high - pp)).toStringAsFixed(2));
+    
+    // Perhitungan R4 dan S4 sesuai instruksi: R4 = PP + (High - Low) * 3 & S4 = PP - (High - Low) * 3
+    final double r4 = double.parse((pp + (high - low) * 3).toStringAsFixed(2));
+    final double s4 = double.parse((pp - (high - low) * 3).toStringAsFixed(2));
 
     final double diff = double.parse((close - pp).toStringAsFixed(2));
     final String bias =
@@ -137,9 +145,11 @@ class _PivotCalculatorState extends State<PivotCalculator> {
       r1: r1,
       r2: r2,
       r3: r3,
+      r4: r4,
       s1: s1,
       s2: s2,
       s3: s3,
+      s4: s4,
       bias: bias,
       diff: diff,
     );
@@ -161,6 +171,7 @@ class _PivotCalculatorState extends State<PivotCalculator> {
 
   @override
   Widget build(BuildContext context) {
+    final primaryColor = Theme.of(context).colorScheme.primary;
     final calc = _calculate();
 
     return SingleChildScrollView(
@@ -178,16 +189,16 @@ class _PivotCalculatorState extends State<PivotCalculator> {
                 child: Padding(
                   padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 2),
                   child: Row(
-                    children: const [
+                    children: [
                       Icon(Icons.arrow_back_rounded,
-                          size: 18, color: Color(0xFF64748B)),
-                      SizedBox(width: 4),
+                          size: 18, color: primaryColor),
+                      const SizedBox(width: 4),
                       Text(
                         'Kembali',
                         style: TextStyle(
                           fontSize: 13,
-                          fontWeight: FontWeight.w500,
-                          color: Color(0xFF64748B),
+                          fontWeight: FontWeight.w600,
+                          color: primaryColor,
                         ),
                       ),
                     ],
@@ -197,15 +208,16 @@ class _PivotCalculatorState extends State<PivotCalculator> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFF1F5F9),
+                  color: primaryColor.withValues(alpha: 0.08),
                   borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: primaryColor.withValues(alpha: 0.2)),
                 ),
-                child: const Text(
+                child: Text(
                   'Formula Standard Floor',
                   style: TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.w600,
-                    color: Color(0xFF475569),
+                    color: primaryColor,
                   ),
                 ),
               ),
@@ -225,8 +237,8 @@ class _PivotCalculatorState extends State<PivotCalculator> {
           ),
           const SizedBox(height: 2),
           const Text(
-            'Hitung level pivot harian, support (S1–S3), dan resistance (R1–R3) untuk emas & forex.',
-            style: TextStyle(fontSize: 13, color: Color(0xFF64748B)),
+            'Hitung level pivot harian, support (S1–S4), dan resistance (R1–R4) untuk emas & forex.',
+            style: TextStyle(fontSize: 13, color: Color(0xFF515F74)),
           ),
           const SizedBox(height: 16),
 
@@ -252,8 +264,7 @@ class _PivotCalculatorState extends State<PivotCalculator> {
                       ),
                     ),
                     Container(
-                      padding:
-                          const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                       decoration: BoxDecoration(
                         color: const Color(0xFFF8FAFC),
                         borderRadius: BorderRadius.circular(4),
@@ -264,7 +275,7 @@ class _PivotCalculatorState extends State<PivotCalculator> {
                         style: TextStyle(
                           fontSize: 11,
                           fontWeight: FontWeight.w600,
-                          color: Color(0xFF64748B),
+                          color: Color(0xFF515F74),
                         ),
                       ),
                     ),
@@ -273,13 +284,13 @@ class _PivotCalculatorState extends State<PivotCalculator> {
                 const Divider(height: 20, color: Color(0xFFF1F5F9)),
 
                 _buildInputField('High Price (Tertinggi)', 'H', _highController,
-                    Icons.arrow_upward_rounded),
+                    Icons.arrow_upward_rounded, primaryColor),
                 const SizedBox(height: 12),
                 _buildInputField('Low Price (Terendah)', 'L', _lowController,
-                    Icons.arrow_downward_rounded),
+                    Icons.arrow_downward_rounded, primaryColor),
                 const SizedBox(height: 12),
                 _buildInputField('Close Price (Penutupan)', 'C', _closeController,
-                    Icons.flag_rounded),
+                    Icons.flag_rounded, primaryColor),
                 const SizedBox(height: 12),
 
                 // Actions Row
@@ -291,14 +302,14 @@ class _PivotCalculatorState extends State<PivotCalculator> {
                       child: Row(
                         children: const [
                           Icon(Icons.restart_alt_rounded,
-                              size: 16, color: Color(0xFF64748B)),
+                              size: 16, color: Color(0xFF515F74)),
                           SizedBox(width: 4),
                           Text(
                             'Reset Nilai',
                             style: TextStyle(
                               fontSize: 12.5,
                               fontWeight: FontWeight.w500,
-                              color: Color(0xFF64748B),
+                              color: Color(0xFF515F74),
                             ),
                           ),
                         ],
@@ -312,15 +323,15 @@ class _PivotCalculatorState extends State<PivotCalculator> {
                       },
                       child: Row(
                         children: [
-                          const Icon(Icons.functions_rounded,
-                              size: 16, color: Color(0xFF0F172A)),
+                          Icon(Icons.functions_rounded,
+                              size: 16, color: primaryColor),
                           const SizedBox(width: 4),
                           Text(
                             _showFormula ? 'Tutup Rumus' : 'Lihat Rumus',
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 12.5,
                               fontWeight: FontWeight.w600,
-                              color: Color(0xFF0F172A),
+                              color: primaryColor,
                             ),
                           ),
                         ],
@@ -347,13 +358,13 @@ class _PivotCalculatorState extends State<PivotCalculator> {
                 children: [
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: const [
+                    children: [
                       Row(
                         children: [
                           Icon(Icons.menu_book_rounded,
-                              size: 18, color: Color(0xFF0F172A)),
-                          SizedBox(width: 6),
-                          Text(
+                              size: 18, color: primaryColor),
+                          const SizedBox(width: 6),
+                          const Text(
                             'Formula Baku Classical Floor',
                             style: TextStyle(
                               fontSize: 13,
@@ -363,9 +374,9 @@ class _PivotCalculatorState extends State<PivotCalculator> {
                           ),
                         ],
                       ),
-                      Text(
+                      const Text(
                         'Langkah Matematis',
-                        style: TextStyle(fontSize: 11, color: Color(0xFF64748B)),
+                        style: TextStyle(fontSize: 11, color: Color(0xFF515F74)),
                       ),
                     ],
                   ),
@@ -386,7 +397,7 @@ class _PivotCalculatorState extends State<PivotCalculator> {
                           style: TextStyle(
                               fontSize: 11.5,
                               fontWeight: FontWeight.w500,
-                              color: Color(0xFF64748B)),
+                              color: Color(0xFF515F74)),
                         ),
                         const SizedBox(height: 2),
                         const Text(
@@ -402,7 +413,7 @@ class _PivotCalculatorState extends State<PivotCalculator> {
                           '= (${calc.high.toStringAsFixed(2)} + ${calc.low.toStringAsFixed(2)} + ${calc.close.toStringAsFixed(2)}) / 3 = ${calc.pp.toStringAsFixed(2)} USD',
                           style: const TextStyle(
                             fontSize: 12,
-                            color: Color(0xFF64748B),
+                            color: Color(0xFF515F74),
                           ),
                         ),
                       ],
@@ -420,8 +431,8 @@ class _PivotCalculatorState extends State<PivotCalculator> {
                             border: Border.all(color: const Color(0xFFE2E8F0)),
                           ),
                           child: const Text(
-                            'R1 = (2 × PP) - Low\nS1 = (2 × PP) - High',
-                            style: TextStyle(fontSize: 11.5, height: 1.4),
+                            'R1 = (2 × PP) - Low\nS1 = (2 × PP) - High\nR2 = PP + (High - Low)\nS2 = PP - (High - Low)',
+                            style: TextStyle(fontSize: 11, height: 1.4),
                           ),
                         ),
                       ),
@@ -435,8 +446,8 @@ class _PivotCalculatorState extends State<PivotCalculator> {
                             border: Border.all(color: const Color(0xFFE2E8F0)),
                           ),
                           child: const Text(
-                            'R2 = PP + (High - Low)\nS2 = PP - (High - Low)',
-                            style: TextStyle(fontSize: 11.5, height: 1.4),
+                            'R3 = High + 2 × (PP - Low)\nS3 = Low - 2 × (High - PP)\nR4 = PP + (High - Low) × 3\nS4 = PP - (High - Low) × 3',
+                            style: TextStyle(fontSize: 11, height: 1.4),
                           ),
                         ),
                       ),
@@ -471,11 +482,11 @@ class _PivotCalculatorState extends State<PivotCalculator> {
                             style: TextStyle(
                               fontSize: 12,
                               fontWeight: FontWeight.w600,
-                              color: Color(0xFF64748B),
+                              color: Color(0xFF515F74),
                               letterSpacing: 0.5,
                             ),
                           ),
-                          _buildBiasBadge(calc.bias),
+                          _buildBiasBadge(calc.bias, primaryColor),
                         ],
                       ),
                       const SizedBox(height: 10),
@@ -484,7 +495,7 @@ class _PivotCalculatorState extends State<PivotCalculator> {
                         style: TextStyle(
                             fontSize: 11.5,
                             fontWeight: FontWeight.w500,
-                            color: Color(0xFF64748B)),
+                            color: Color(0xFF515F74)),
                       ),
                       Row(
                         crossAxisAlignment: CrossAxisAlignment.baseline,
@@ -492,10 +503,10 @@ class _PivotCalculatorState extends State<PivotCalculator> {
                         children: [
                           Text(
                             calc.pp.toStringAsFixed(2),
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 34,
                               fontWeight: FontWeight.w800,
-                              color: Color(0xFF0F172A),
+                              color: primaryColor,
                               letterSpacing: -0.5,
                             ),
                           ),
@@ -505,7 +516,7 @@ class _PivotCalculatorState extends State<PivotCalculator> {
                             style: TextStyle(
                                 fontSize: 13.5,
                                 fontWeight: FontWeight.w600,
-                                color: Color(0xFF64748B)),
+                                color: Color(0xFF515F74)),
                           ),
                         ],
                       ),
@@ -513,13 +524,13 @@ class _PivotCalculatorState extends State<PivotCalculator> {
                       Text(
                         'Harga penutupan ${calc.close.toStringAsFixed(2)} berada ${calc.diff >= 0 ? "di atas" : "di bawah"} Pivot Point (${calc.diff >= 0 ? "+${calc.diff.toStringAsFixed(2)}" : calc.diff.toStringAsFixed(2)}).',
                         style: const TextStyle(
-                            fontSize: 12.5, color: Color(0xFF64748B)),
+                            fontSize: 12.5, color: Color(0xFF515F74)),
                       ),
                     ],
                   ),
                 ),
 
-                // Level Grid (Support & Resistance)
+                // Level Grid (Support & Resistance R1-R4 & S1-S4)
                 Container(
                   padding: const EdgeInsets.all(14),
                   decoration: const BoxDecoration(
@@ -536,21 +547,23 @@ class _PivotCalculatorState extends State<PivotCalculator> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Row(
-                              children: const [
+                              children: [
                                 Icon(Icons.north_east_rounded,
-                                    size: 15, color: Color(0xFFBE123C)),
-                                SizedBox(width: 4),
+                                    size: 15, color: primaryColor),
+                                const SizedBox(width: 4),
                                 Text(
                                   'Resistance (Jual)',
                                   style: TextStyle(
                                     fontSize: 12,
                                     fontWeight: FontWeight.bold,
-                                    color: Color(0xFFBE123C),
+                                    color: primaryColor,
                                   ),
                                 ),
                               ],
                             ),
                             const SizedBox(height: 8),
+                            _buildLevelCard('R4 Ekstrem', calc.r4),
+                            const SizedBox(height: 6),
                             _buildLevelCard('R3 Kuat', calc.r3),
                             const SizedBox(height: 6),
                             _buildLevelCard('R2 Moderat', calc.r2),
@@ -587,6 +600,8 @@ class _PivotCalculatorState extends State<PivotCalculator> {
                             _buildLevelCard('S2 Moderat', calc.s2),
                             const SizedBox(height: 6),
                             _buildLevelCard('S3 Kuat', calc.s3),
+                            const SizedBox(height: 6),
+                            _buildLevelCard('S4 Ekstrem', calc.s4),
                           ],
                         ),
                       ),
@@ -617,7 +632,7 @@ class _PivotCalculatorState extends State<PivotCalculator> {
                           style: ElevatedButton.styleFrom(
                             backgroundColor: _savedSuccess
                                 ? const Color(0xFF059669)
-                                : const Color(0xFF0F172A),
+                                : primaryColor,
                             foregroundColor: Colors.white,
                             padding: const EdgeInsets.symmetric(vertical: 12),
                             elevation: 0,
@@ -633,12 +648,11 @@ class _PivotCalculatorState extends State<PivotCalculator> {
                         width: double.infinity,
                         child: OutlinedButton.icon(
                           onPressed: () => widget.onOpenDetailModal(calc),
-                          icon: const Icon(Icons.visibility_outlined, size: 18),
-                          label: const Text('Lihat Rincian Lengkap'),
+                          icon: Icon(Icons.visibility_outlined, size: 18, color: primaryColor),
+                          label: Text('Lihat Rincian Lengkap', style: TextStyle(color: primaryColor)),
                           style: OutlinedButton.styleFrom(
-                            backgroundColor: const Color(0xFFF8FAFC),
-                            foregroundColor: const Color(0xFF0F172A),
-                            side: const BorderSide(color: Color(0xFFE2E8F0)),
+                            backgroundColor: Colors.white,
+                            side: BorderSide(color: primaryColor.withValues(alpha: 0.3)),
                             padding: const EdgeInsets.symmetric(vertical: 12),
                             shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(12)),
@@ -659,7 +673,7 @@ class _PivotCalculatorState extends State<PivotCalculator> {
   }
 
   Widget _buildInputField(String label, String badge,
-      TextEditingController controller, IconData icon) {
+      TextEditingController controller, IconData icon, Color primaryColor) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -693,7 +707,7 @@ class _PivotCalculatorState extends State<PivotCalculator> {
             suffixStyle: const TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.w600,
-                color: Color(0xFF64748B)),
+                color: Color(0xFF515F74)),
             filled: true,
             fillColor: const Color(0xFFF8FAFC),
             contentPadding:
@@ -704,7 +718,7 @@ class _PivotCalculatorState extends State<PivotCalculator> {
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: Color(0xFF0F172A)),
+              borderSide: BorderSide(color: primaryColor, width: 1.5),
             ),
           ),
         ),
@@ -724,7 +738,7 @@ class _PivotCalculatorState extends State<PivotCalculator> {
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Text(label,
-              style: const TextStyle(fontSize: 11.5, color: Color(0xFF64748B))),
+              style: const TextStyle(fontSize: 11.5, color: Color(0xFF515F74))),
           Text(
             val.toStringAsFixed(2),
             style: const TextStyle(
@@ -738,19 +752,19 @@ class _PivotCalculatorState extends State<PivotCalculator> {
     );
   }
 
-  Widget _buildBiasBadge(String bias) {
+  Widget _buildBiasBadge(String bias, Color primaryColor) {
     bool isBullish = bias == 'bullish';
     bool isBearish = bias == 'bearish';
 
     Color bg = isBullish
         ? const Color(0xFFECFDF5)
-        : (isBearish ? const Color(0xFFFFF1F2) : const Color(0xFFF8FAFC));
+        : (isBearish ? primaryColor.withValues(alpha: 0.1) : const Color(0xFFF8FAFC));
     Color border = isBullish
         ? const Color(0xFFA7F3D0)
-        : (isBearish ? const Color(0xFFFECDD3) : const Color(0xFFE2E8F0));
+        : (isBearish ? primaryColor.withValues(alpha: 0.3) : const Color(0xFFE2E8F0));
     Color text = isBullish
         ? const Color(0xFF047857)
-        : (isBearish ? const Color(0xFFBE123C) : const Color(0xFF334155));
+        : (isBearish ? primaryColor : const Color(0xFF334155));
     IconData icon = isBullish
         ? Icons.trending_up_rounded
         : (isBearish ? Icons.trending_down_rounded : Icons.swap_horiz_rounded);

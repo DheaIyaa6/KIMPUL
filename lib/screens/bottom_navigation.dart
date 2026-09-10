@@ -14,6 +14,8 @@ class BottomNav extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final primaryColor = Theme.of(context).colorScheme.primary;
+
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
@@ -33,8 +35,8 @@ class BottomNav extends StatelessWidget {
         onTap: onTap,
         type: BottomNavigationBarType.fixed,
         backgroundColor: Colors.white,
-        selectedItemColor: const Color(0xFF0F172A),
-        unselectedItemColor: const Color(0xFF94A3B8),
+        selectedItemColor: primaryColor, // Menggunakan Primary Color saat item aktif/diklik
+        unselectedItemColor: const Color(0xFF515F74), // Warna Slate untuk item tidak aktif
         selectedFontSize: 11.5,
         unselectedFontSize: 11.5,
         items: [
@@ -68,8 +70,8 @@ class BottomNav extends StatelessWidget {
                     right: -6,
                     child: Container(
                       padding: const EdgeInsets.all(2),
-                      decoration: const BoxDecoration(
-                        color: Color(0xFFE11D48),
+                      decoration: BoxDecoration(
+                        color: primaryColor, // Latar badge menggunakan Primary Color
                         shape: BoxShape.circle,
                       ),
                       constraints: const BoxConstraints(

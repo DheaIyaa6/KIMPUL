@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:kimpul/screens/splash_screen.dart'; // Import file splash screen yang baru dibuat
+import 'package:kimpul/screens/splash_screen.dart';
 
 void main() {
   runApp(const MyApp());
@@ -10,63 +10,70 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // 🎨 DEFINISI SKEMA WARNA GLOBAL APLIKASI KIMPUL
+    const Color primaryColor = Color(0xFFE93A56);   // Merah Kimpul
+    const Color secondaryColor = Color(0xFF515F74); // Abu-abu Slate
+    const Color darkColor = Color(0xFF0F172A);      // Hitam/Dark Slate
+    const Color backgroundColor = Colors.white;      // Background Layar Putih
+
     return MaterialApp(
       title: 'Kimpul',
       debugShowCheckedModeBanner: false,
+
+      // 🌟 KONFIGURASI TEMA GLOBAL
       theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
-      ),
-      // SplashScreen sebagai halaman pertama
-      home: const SplashScreen(), 
-    );
-  }
-}
+        useMaterial3: true,
+        scaffoldBackgroundColor: backgroundColor,
 
-// Catatan: MyHomePage dan _MyHomePageState bawaan Flutter 
-// bisa kamu biarkan di bawah sini atau dihapus nanti saat kamu 
-// sudah membuat halaman utama aplikasi Kimpul yang sebenarnya.
-class MyHomePage extends StatefulWidget {
-  const MyHomePage({super.key, required this.title});
+        // 1. ColorScheme Utama
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: primaryColor,
+          primary: primaryColor,
+          secondary: secondaryColor,
+          tertiary: darkColor,
+          surface: backgroundColor,
+        ),
 
-  final String title;
+        // 2. Tema AppBar / Header
+        appBarTheme: const AppBarTheme(
+          backgroundColor: backgroundColor,
+          foregroundColor: darkColor,
+          elevation: 0,
+          scrolledUnderElevation: 0,
+        ),
 
-  @override
-  State<MyHomePage> createState() => _MyHomePageState();
-}
+        // 3. Tema Bottom Navigation Bar (Menu Bawah - Fixed Error LabelStyle)
+        bottomNavigationBarTheme: const BottomNavigationBarThemeData(
+          backgroundColor: backgroundColor,
+          selectedItemColor: primaryColor,
+          unselectedItemColor: secondaryColor,
+          selectedLabelStyle: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600),
+          unselectedLabelStyle: TextStyle(fontSize: 11.5, fontWeight: FontWeight.normal),
+          type: BottomNavigationBarType.fixed,
+          elevation: 8,
+        ),
 
-class _MyHomePageState extends State<MyHomePage> {
-  int _counter = 0;
-
-  void _incrementCounter() {
-    setState(() {
-      _counter++;
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-        title: Text(widget.title),
-      ),
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Text('You have pushed the button this many times:'),
-            Text(
-              '$_counter',
-              style: Theme.of(context).textTheme.headlineMedium,
+        // 4. Tema Tombol (ElevatedButton)
+        elevatedButtonTheme: ElevatedButtonThemeData(
+          style: ElevatedButton.styleFrom(
+            backgroundColor: darkColor,
+            foregroundColor: Colors.white,
+            elevation: 0,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
             ),
-          ],
+          ),
+        ),
+
+        // 5. Tema FloatingActionButton
+        floatingActionButtonTheme: const FloatingActionButtonThemeData(
+          backgroundColor: primaryColor,
+          foregroundColor: Colors.white,
         ),
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _incrementCounter,
-        tooltip: 'Increment',
-        child: const Icon(Icons.add),
-      ),
+
+      // SplashScreen sebagai halaman pertama
+      home: const SplashScreen(),
     );
   }
 }
