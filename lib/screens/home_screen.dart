@@ -22,6 +22,9 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   int _selectedIndex = 0;
 
+  // Warna Primary Pink KIMPUL
+  static const primaryPink = Color(0xFFE93A56);
+
   // Controller WebView Mini Chart
   late WebViewController _miniChartController;
 
@@ -132,7 +135,7 @@ class _HomeScreenState extends State<HomeScreen> {
       }
     });
 
-    // 🌟 INISIALISASI CAROUSEL: DARI SLIDE 3 LANGSUNG JUMP KE SLIDE 1 (TANPA MUNDUR KENA SLIDE 2)
+    // Carousel Slider: Pindah halus, lalu melompat ke 0 saat sudah di halaman akhir
     _newsPageController = PageController(initialPage: 0);
     _newsTimer = Timer.periodic(const Duration(seconds: 10), (timer) {
       if (mounted && _newsPageController.hasClients) {
@@ -144,7 +147,6 @@ class _HomeScreenState extends State<HomeScreen> {
             curve: Curves.easeInOut,
           );
         } else {
-          // Jika berada di Slide 3, langsung melompat (jump) ke Slide 1 tanpa animasi mundur
           _currentNewsPage = 0;
           _newsPageController.jumpToPage(0);
         }
@@ -211,7 +213,6 @@ class _HomeScreenState extends State<HomeScreen> {
   // Tab 0: Beranda
   Widget _buildHomeTab() {
     final bool marketActive = _isMarketActive();
-    final primaryColor = Theme.of(context).colorScheme.primary;
 
     String formattedDate = DateFormat('EEEE, d MMMM yyyy', 'id_ID').format(_currentTime);
     String formattedTime = DateFormat('HH:mm:ss', 'id_ID').format(_currentTime);
@@ -236,10 +237,10 @@ class _HomeScreenState extends State<HomeScreen> {
                   const SizedBox(height: 2),
                   Text(
                     'Dhea Ananda',
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontSize: 22,
                       fontWeight: FontWeight.bold,
-                      color: primaryColor,
+                      color: primaryPink,
                       letterSpacing: -0.5,
                     ),
                   ),
@@ -259,10 +260,10 @@ class _HomeScreenState extends State<HomeScreen> {
                   const SizedBox(height: 2),
                   Text(
                     '$formattedTime WIB',
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontSize: 13.5,
                       fontWeight: FontWeight.bold,
-                      color: primaryColor,
+                      color: primaryPink,
                       fontFamily: 'monospace',
                     ),
                   ),
@@ -321,7 +322,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 return InkWell(
                   onTap: () {
                     setState(() {
-                      _selectedIndex = 1; // Navigasi ke Tab Berita saat card diklik
+                      _selectedIndex = 1;
                     });
                   },
                   borderRadius: BorderRadius.circular(16),
@@ -341,7 +342,6 @@ class _HomeScreenState extends State<HomeScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // GAMBAR DI ATAS DENGAN JUDUL TEKS DI ATAS GAMBAR
                         Expanded(
                           flex: 6,
                           child: Stack(
@@ -406,8 +406,6 @@ class _HomeScreenState extends State<HomeScreen> {
                             ],
                           ),
                         ),
-
-                        // DESKRIPSI RINGKAS & FOOTER DI BAWAH FOTO
                         Expanded(
                           flex: 4,
                           child: Padding(
@@ -473,7 +471,7 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           const SizedBox(height: 10),
 
-          // INDIKATOR TITIK SLIDER (DOTS) DIBAWAH KOTAK MELAYANG
+          // INDIKATOR TITIK SLIDER (DOTS)
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: List.generate(
@@ -485,7 +483,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 height: 6,
                 decoration: BoxDecoration(
                   color: _currentNewsPage == index
-                      ? primaryColor
+                      ? primaryPink
                       : const Color(0xFFCBD5E1),
                   borderRadius: BorderRadius.circular(3),
                 ),
@@ -519,7 +517,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       width: 38,
                       height: 38,
                       decoration: BoxDecoration(
-                        color: primaryColor,
+                        color: primaryPink,
                         borderRadius: BorderRadius.circular(10),
                       ),
                       child: const Icon(
@@ -564,7 +562,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             width: 8,
                             height: 8,
                             decoration: BoxDecoration(
-                              color: marketActive ? const Color(0xFF10B981) : primaryColor,
+                              color: marketActive ? const Color(0xFF10B981) : primaryPink,
                               shape: BoxShape.circle,
                             ),
                           ),
@@ -574,7 +572,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             style: TextStyle(
                               fontSize: 11,
                               fontWeight: FontWeight.w600,
-                              color: marketActive ? const Color(0xFF059669) : primaryColor,
+                              color: marketActive ? const Color(0xFF059669) : primaryPink,
                             ),
                           ),
                         ],
@@ -630,7 +628,7 @@ class _HomeScreenState extends State<HomeScreen> {
               icon: const Icon(Icons.candlestick_chart_rounded, size: 20, color: Colors.white),
               label: const Text('Buka Grafik Interaktif TradingView'),
               style: ElevatedButton.styleFrom(
-                backgroundColor: primaryColor,
+                backgroundColor: primaryPink,
                 foregroundColor: Colors.white,
                 elevation: 0,
                 padding: const EdgeInsets.symmetric(vertical: 14),
@@ -682,7 +680,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       _selectedCalcView = CalcView.pivot;
                     });
                   },
-                  primaryColor: primaryColor,
+                  primaryColor: primaryPink,
                 ),
               ),
               const SizedBox(width: 12),
@@ -698,7 +696,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       _selectedCalcView = CalcView.gold;
                     });
                   },
-                  primaryColor: primaryColor,
+                  primaryColor: primaryPink,
                 ),
               ),
             ],
@@ -1099,8 +1097,8 @@ class _HomeScreenState extends State<HomeScreen> {
         onTap: _onTabTapped,
         type: BottomNavigationBarType.fixed,
         backgroundColor: Colors.white,
-        selectedItemColor: const Color(0xFF0F172A),
-        unselectedItemColor: const Color(0xFF94A3B8),
+        selectedItemColor: primaryPink, // 🌟 Warna Pink KIMPUL saat item aktif
+        unselectedItemColor: const Color(0xFF94A3B8), // Warna Slate untuk item tidak aktif
         selectedFontSize: 11.5,
         unselectedFontSize: 11.5,
         items: const [

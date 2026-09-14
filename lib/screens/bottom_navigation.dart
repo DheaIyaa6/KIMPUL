@@ -14,7 +14,8 @@ class BottomNav extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final primaryColor = Theme.of(context).colorScheme.primary;
+    // 🌟 Menggunakan warna primary pink KIMPUL
+    const primaryPink = Color(0xFFE93A56);
 
     return Container(
       decoration: BoxDecoration(
@@ -35,7 +36,7 @@ class BottomNav extends StatelessWidget {
         onTap: onTap,
         type: BottomNavigationBarType.fixed,
         backgroundColor: Colors.white,
-        selectedItemColor: primaryColor, // Menggunakan Primary Color saat item aktif/diklik
+        selectedItemColor: primaryPink, // Warna Pink KIMPUL saat item aktif
         unselectedItemColor: const Color(0xFF515F74), // Warna Slate untuk item tidak aktif
         selectedFontSize: 11.5,
         unselectedFontSize: 11.5,
@@ -70,8 +71,8 @@ class BottomNav extends StatelessWidget {
                     right: -6,
                     child: Container(
                       padding: const EdgeInsets.all(2),
-                      decoration: BoxDecoration(
-                        color: primaryColor, // Latar badge menggunakan Primary Color
+                      decoration: const BoxDecoration(
+                        color: primaryPink, // Latar badge menggunakan Pink KIMPUL
                         shape: BoxShape.circle,
                       ),
                       constraints: const BoxConstraints(
