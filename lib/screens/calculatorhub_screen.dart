@@ -46,7 +46,6 @@ class CalcHubScreen extends StatelessWidget {
                 title: 'Pivot Point Calculator',
                 subtitle:
                     'Hitung level pivot harian, empat tingkat support (S1–S4), dan empat tingkat resistance (R1–R4) berdasarkan harga tertinggi, terendah, dan penutupan.',
-                badgeText: 'Floor Classical',
                 icon: Icons.query_stats_rounded,
                 buttonText: 'Buka Kalkulator Pivot',
                 feature1: 'S/R 4 Tingkat',
@@ -62,7 +61,6 @@ class CalcHubScreen extends StatelessWidget {
                 title: 'Kalkulator Emas Fisik',
                 subtitle:
                     'Simulasi perhitungan nilai emas fisik 24 Karat (Antam / UBS), berat gramatur, tarif PPh 22 NPWP, ongkos cetak kemasan CertiCard, dan estimasi buyback.',
-                badgeText: 'Logam Mulia Batangan',
                 icon: Icons.account_balance_wallet_rounded,
                 buttonText: 'Buka Kalkulator Emas Fisik',
                 feature1: 'Regulasi Pajak PMK',
@@ -136,7 +134,6 @@ class CalcHubScreen extends StatelessWidget {
     BuildContext context, {
     required String title,
     required String subtitle,
-    required String badgeText,
     required IconData icon,
     required String buttonText,
     required String feature1,
@@ -161,10 +158,10 @@ class CalcHubScreen extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Top Header Row (Icon & Badge)
+          // Top Header Row (Icon & Judul - badge dihapus, judul dipindah ke sini)
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               Container(
                 width: 44,
@@ -179,39 +176,22 @@ class CalcHubScreen extends StatelessWidget {
                   color: Colors.white,
                 ),
               ),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 4,
-                ),
-                decoration: BoxDecoration(
-                  color: primaryColor.withValues(alpha: 0.08),
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: primaryColor.withValues(alpha: 0.2)),
-                ),
+              const SizedBox(width: 12),
+              Expanded(
                 child: Text(
-                  badgeText,
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                    color: primaryColor,
+                  title,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF0F172A),
                   ),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: 12),
 
-          // Title & Description
-          Text(
-            title,
-            style: const TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-              color: Color(0xFF0F172A),
-            ),
-          ),
-          const SizedBox(height: 4),
+          // Deskripsi
           Text(
             subtitle,
             style: const TextStyle(
