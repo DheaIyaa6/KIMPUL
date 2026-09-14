@@ -22,6 +22,9 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   int _selectedIndex = 0;
 
+  // 🌟 Controller WebView Mini Chart
+  late WebViewController _miniChartController;
+
   // 🌟 Timer & Waktu Real-time
   late Timer _timer;
   late DateTime _currentTime;
@@ -94,6 +97,15 @@ class _HomeScreenState extends State<HomeScreen> {
     }
 
     return true; // Pasar Aktif
+  }
+
+  // 🌟 Fungsi Logout
+  void _handleLogout() {
+    Navigator.pushAndRemoveUntil(
+      context,
+      MaterialPageRoute(builder: (context) => const LoginScreen()),
+      (route) => false,
+    );
   }
 
   @override
@@ -227,7 +239,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       fontSize: 13.5,
                       fontWeight: FontWeight.bold,
                       color: primaryColor,
-                      fontFamily: 'monospace', // Agar posisi angka tetap stabil saat detik berganti
+                      fontFamily: 'monospace',
                     ),
                   ),
                 ],
@@ -236,152 +248,152 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           const SizedBox(height: 16),
 
-            // Card Tentang KIMPUL
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: const Color(0xFFE2E8F0)),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.02),
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Row(
-                        children: [
-                          Container(
-                            width: 32,
-                            height: 32,
-                            decoration: const BoxDecoration(
-                              color: Color(0xFFFFE4E6),
-                              shape: BoxShape.circle,
-                            ),
-                            child: const Icon(
-                              Icons.info_outline_rounded,
-                              color: Color(0xFFE93A56),
-                              size: 20,
-                            ),
-                          ),
-                          const SizedBox(width: 10),
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: const [
-                              Text(
-                                'Tentang KIMPUL',
-                                style: TextStyle(
-                                  fontSize: 15,
-                                  fontWeight: FontWeight.bold,
-                                  color: Color(0xFF0F172A),
-                                ),
-                              ),
-                              Text(
-                                'Identitas Resmi Aplikasi',
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  color: Color(0xFF64748B),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFFFF1F2),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: const Text(
-                          'K • I • M • P • U • L',
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.bold,
-                            color: Color(0xFFE93A56),
-                            letterSpacing: 1.0,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 14),
-                  RichText(
-                    text: const TextSpan(
-                      style: TextStyle(fontSize: 12.5, color: Color(0xFF334155), height: 1.5),
+          // Card Tentang KIMPUL
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: const Color(0xFFE2E8F0)),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.02),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Row(
                       children: [
-                        TextSpan(
-                          text: 'KIMPUL ',
-                          style: TextStyle(fontWeight: FontWeight.bold),
+                        Container(
+                          width: 32,
+                          height: 32,
+                          decoration: const BoxDecoration(
+                            color: Color(0xFFFFE4E6),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(
+                            Icons.info_outline_rounded,
+                            color: Color(0xFFE93A56),
+                            size: 20,
+                          ),
                         ),
-                        TextSpan(text: 'merupakan singkatan dari '),
-                        TextSpan(
-                          text: 'K',
-                          style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFFE93A56)),
-                        ),
-                        TextSpan(text: 'alkulator '),
-                        TextSpan(
-                          text: 'I',
-                          style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFFE93A56)),
-                        ),
-                        TextSpan(text: 'nformasi '),
-                        TextSpan(
-                          text: 'M',
-                          style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFFE93A56)),
-                        ),
-                        TextSpan(text: 'arket untuk '),
-                        TextSpan(
-                          text: 'P',
-                          style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFFE93A56)),
-                        ),
-                        TextSpan(text: 'erhitungan '),
-                        TextSpan(
-                          text: 'U',
-                          style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFFE93A56)),
-                        ),
-                        TextSpan(text: 'ntung & '),
-                        TextSpan(
-                          text: 'L',
-                          style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFFE93A56)),
-                        ),
-                        TextSpan(
-                          text: 'oss, yaitu aplikasi yang dirancang untuk membantu pengguna melakukan berbagai perhitungan dalam aktivitas jual beli emas.',
+                        const SizedBox(width: 10),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: const [
+                            Text(
+                              'Tentang KIMPUL',
+                              style: TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.bold,
+                                color: Color(0xFF0F172A),
+                              ),
+                            ),
+                            Text(
+                              'Identitas Resmi Aplikasi',
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: Color(0xFF64748B),
+                              ),
+                            ),
+                          ],
                         ),
                       ],
                     ),
-                  ),
-                  const SizedBox(height: 16),
-                  Row(
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFFF1F2),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Text(
+                        'K • I • M • P • U • L',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFFE93A56),
+                          letterSpacing: 1.0,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                RichText(
+                  text: const TextSpan(
+                    style: TextStyle(fontSize: 12.5, color: Color(0xFF334155), height: 1.5),
                     children: [
-                      Expanded(child: _buildAbbrTile('K', 'alkulator')),
-                      const SizedBox(width: 8),
-                      Expanded(child: _buildAbbrTile('I', 'nformasi')),
-                      const SizedBox(width: 8),
-                      Expanded(child: _buildAbbrTile('M', 'arket')),
+                      TextSpan(
+                        text: 'KIMPUL ',
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      TextSpan(text: 'merupakan singkatan dari '),
+                      TextSpan(
+                        text: 'K',
+                        style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFFE93A56)),
+                      ),
+                      TextSpan(text: 'alkulator '),
+                      TextSpan(
+                        text: 'I',
+                        style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFFE93A56)),
+                      ),
+                      TextSpan(text: 'nformasi '),
+                      TextSpan(
+                        text: 'M',
+                        style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFFE93A56)),
+                      ),
+                      TextSpan(text: 'arket untuk '),
+                      TextSpan(
+                        text: 'P',
+                        style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFFE93A56)),
+                      ),
+                      TextSpan(text: 'erhitungan '),
+                      TextSpan(
+                        text: 'U',
+                        style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFFE93A56)),
+                      ),
+                      TextSpan(text: 'ntung & '),
+                      TextSpan(
+                        text: 'L',
+                        style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFFE93A56)),
+                      ),
+                      TextSpan(
+                        text: 'oss, yaitu aplikasi yang dirancang untuk membantu pengguna melakukan berbagai perhitungan dalam aktivitas jual beli emas.',
+                      ),
                     ],
                   ),
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      Expanded(child: _buildAbbrTile('P', 'erhitungan')),
-                      const SizedBox(width: 8),
-                      Expanded(child: _buildAbbrTile('U', 'ntung')),
-                      const SizedBox(width: 8),
-                      Expanded(child: _buildAbbrTile('L', 'oss')),
-                    ],
-                  ),
-                ],
-              ),
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Expanded(child: _buildAbbrTile('K', 'alkulator')),
+                    const SizedBox(width: 8),
+                    Expanded(child: _buildAbbrTile('I', 'nformasi')),
+                    const SizedBox(width: 8),
+                    Expanded(child: _buildAbbrTile('M', 'arket')),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(child: _buildAbbrTile('P', 'erhitungan')),
+                    const SizedBox(width: 8),
+                    Expanded(child: _buildAbbrTile('U', 'ntung')),
+                    const SizedBox(width: 8),
+                    Expanded(child: _buildAbbrTile('L', 'oss')),
+                  ],
+                ),
+              ],
             ),
-            const SizedBox(height: 16),
+          ),
+          const SizedBox(height: 16),
 
           // Market Hero Card: Gold Spot
           Container(
@@ -539,241 +551,242 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           const SizedBox(height: 24),
 
-            // SECTION: Kalkulasi Cepat
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: const [
-                Text(
-                  'Kalkulasi Cepat',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFF0F172A),
-                  ),
+          // SECTION: Kalkulasi Cepat
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: const [
+              Text(
+                'Kalkulasi Cepat',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF0F172A),
                 ),
-                Text(
-                  'Pilih Model',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Color(0xFF64748B),
-                  ),
+              ),
+              Text(
+                'Pilih Model',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Color(0xFF64748B),
                 ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: _buildQuickCalcCard(
-                    title: 'Pivot Point',
-                    subtitle: 'Level Support &\nResistance intraday...',
-                    btnText: 'Buka Kalkulator',
-                    icon: Icons.calculate_outlined,
-                    onTap: () {
-                      setState(() {
-                        _selectedIndex = 2; // Pindah ke Tab Kalkulator
-                        _selectedCalcView = CalcView.pivot;
-                      });
-                    },
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _buildQuickCalcCard(
-                    title: 'Emas Fisik',
-                    subtitle: 'Estimasi gramatur,\nkarat, cetak & PPh 22.',
-                    btnText: 'Simulasi Fisik',
-                    icon: Icons.account_balance_wallet_outlined,
-                    onTap: () {
-                      setState(() {
-                        _selectedIndex = 2; // Pindah ke Tab Kalkulator
-                        _selectedCalcView = CalcView.gold;
-                      });
-                    },
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 24),
-
-            // SECTION: Perhitungan Terakhir
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text(
-                  'Perhitungan Terakhir',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFF0F172A),
-                  ),
-                ),
-                GestureDetector(
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: _buildQuickCalcCard(
+                  title: 'Pivot Point',
+                  subtitle: 'Level Support &\nResistance intraday...',
+                  btnText: 'Buka Kalkulator',
+                  icon: Icons.calculate_outlined,
                   onTap: () {
                     setState(() {
-                      _selectedIndex = 3; // Pindah ke Navigasi Bar Riwayat
+                      _selectedIndex = 2; // Pindah ke Tab Kalkulator
+                      _selectedCalcView = CalcView.pivot;
                     });
                   },
-                  child: const Text(
-                    'Lihat Semua Riwayat',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: Color(0xFF0F172A),
-                    ),
+                  primaryColor: primaryColor,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _buildQuickCalcCard(
+                  title: 'Emas Fisik',
+                  subtitle: 'Estimasi gramatur,\nkarat, cetak & PPh 22.',
+                  btnText: 'Simulasi Fisik',
+                  icon: Icons.account_balance_wallet_outlined,
+                  onTap: () {
+                    setState(() {
+                      _selectedIndex = 2; // Pindah ke Tab Kalkulator
+                      _selectedCalcView = CalcView.gold;
+                    });
+                  },
+                  primaryColor: primaryColor,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 24),
+
+          // SECTION: Perhitungan Terakhir
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'Perhitungan Terakhir',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF0F172A),
+                ),
+              ),
+              GestureDetector(
+                onTap: () {
+                  setState(() {
+                    _selectedIndex = 3; // Pindah ke Navigasi Bar Riwayat
+                  });
+                },
+                child: const Text(
+                  'Lihat Semua Riwayat',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF0F172A),
                   ),
                 ),
-              ],
-            ),
-            const SizedBox(height: 12),
-
-            // Card Hasil Perhitungan Terakhir
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: const Color(0xFFE2E8F0)),
               ),
-              child: Column(
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Row(
-                        children: const [
-                          Icon(Icons.access_time, size: 20, color: Color(0xFF475569)),
-                          SizedBox(width: 8),
-                          Text(
-                            'Pivot Point Harian',
-                            style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.bold,
-                              color: Color(0xFF0F172A),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const Text(
-                        '02 Sep 2026, 14:30',
-                        style: TextStyle(
-                          fontSize: 11,
-                          color: Color(0xFF94A3B8),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceAround,
-                    children: [
-                      Column(
-                        children: const [
-                          Text('Support 1 (S1)', style: TextStyle(fontSize: 11, color: Color(0xFF64748B))),
-                          SizedBox(height: 4),
-                          Text('2.317,50', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Color(0xFF0F172A))),
-                        ],
-                      ),
-                      Column(
-                        children: const [
-                          Text('Pivot (PP)', style: TextStyle(fontSize: 11, color: Color(0xFFE11D48))),
-                          SizedBox(height: 4),
-                          Text('2.331,50', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Color(0xFFE11D48))),
-                        ],
-                      ),
-                      Column(
-                        children: const [
-                          Text('Resistance 1 (R1)', style: TextStyle(fontSize: 11, color: Color(0xFF64748B))),
-                          SizedBox(height: 4),
-                          Text('2.352,80', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Color(0xFF0F172A))),
-                        ],
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  const Divider(color: Color(0xFFF1F5F9), height: 1),
-                  const SizedBox(height: 12),
-                  InkWell(
-                    onTap: () {
-                      setState(() {
-                        _selectedIndex = 3; // Pindah ke Riwayat
-                      });
-                    },
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            ],
+          ),
+          const SizedBox(height: 12),
+
+          // Card Hasil Perhitungan Terakhir
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: const Color(0xFFE2E8F0)),
+            ),
+            child: Column(
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Row(
                       children: const [
+                        Icon(Icons.access_time, size: 20, color: Color(0xFF475569)),
+                        SizedBox(width: 8),
                         Text(
-                          'Buka rincian kalkulasi',
+                          'Pivot Point Harian',
                           style: TextStyle(
-                            fontSize: 12.5,
-                            fontWeight: FontWeight.w600,
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
                             color: Color(0xFF0F172A),
                           ),
                         ),
-                        Icon(Icons.chevron_right_rounded, size: 20, color: Color(0xFF0F172A)),
                       ],
                     ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 24),
-
-            // SECTION: Kabar Emas Terkini
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: const [
-                Text(
-                  'Kabar Emas Terkini',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFF0F172A),
-                  ),
+                    const Text(
+                      '02 Sep 2026, 14:30',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: Color(0xFF94A3B8),
+                      ),
+                    ),
+                  ],
                 ),
-                Text(
-                  'Wawasan Pasar',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Color(0xFF64748B),
+                const SizedBox(height: 16),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceAround,
+                  children: [
+                    Column(
+                      children: const [
+                        Text('Support 1 (S1)', style: TextStyle(fontSize: 11, color: Color(0xFF64748B))),
+                        SizedBox(height: 4),
+                        Text('2.317,50', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Color(0xFF0F172A))),
+                      ],
+                    ),
+                    Column(
+                      children: const [
+                        Text('Pivot (PP)', style: TextStyle(fontSize: 11, color: Color(0xFFE11D48))),
+                        SizedBox(height: 4),
+                        Text('2.331,50', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Color(0xFFE11D48))),
+                      ],
+                    ),
+                    Column(
+                      children: const [
+                        Text('Resistance 1 (R1)', style: TextStyle(fontSize: 11, color: Color(0xFF64748B))),
+                        SizedBox(height: 4),
+                        Text('2.352,80', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Color(0xFF0F172A))),
+                      ],
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                const Divider(color: Color(0xFFF1F5F9), height: 1),
+                const SizedBox(height: 12),
+                InkWell(
+                  onTap: () {
+                    setState(() {
+                      _selectedIndex = 3; // Pindah ke Riwayat
+                    });
+                  },
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: const [
+                      Text(
+                        'Buka rincian kalkulasi',
+                        style: TextStyle(
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFF0F172A),
+                        ),
+                      ),
+                      Icon(Icons.chevron_right_rounded, size: 20, color: Color(0xFF0F172A)),
+                    ],
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 12),
+          ),
+          const SizedBox(height: 24),
 
-            // News Card Items (Masing-masing bisa diklik menuju tab Berita)
-            _buildHomeNewsTile(
-              title: 'Emas Mendekati Level Tertinggi Sepanjang Masa di Tengah...',
-              source: 'TradingView Newsroom',
-              timeAgo: '12m lalu',
-              tag: 'BULLISH',
-              tagColor: const Color(0xFF059669),
-              tagBg: const Color(0xFFECFDF5),
-              imageUrl: 'https://images.unsplash.com/photo-1610375461246-83df859d849d?auto=format&fit=crop&w=600&q=80',
-              onTap: () {
-                setState(() {
-                  _selectedIndex = 1; // Pindah ke Navigasi Bar Berita
-                });
-              },
-            ),
-            const SizedBox(height: 12),
-            _buildHomeNewsTile(
-              title: 'Analisis Teknikal XAU/USD: Pola Breakout Menguji Resistance...',
-              source: 'TradingView / Analyst',
-              timeAgo: '28m lalu',
-              tag: 'ANALISIS',
-              tagColor: const Color(0xFFE93A56),
-              tagBg: const Color(0xFFFFF1F2),
-              imageUrl: 'https://images.unsplash.com/photo-1590283603385-17ffb3a7f29f?auto=format&fit=crop&w=600&q=80',
-              onTap: () {
-                setState(() {
-                  _selectedIndex = 1; // Pindah ke Navigasi Bar Berita
-                });
-              },
-            ),
-          ],
-        ),
+          // SECTION: Kabar Emas Terkini
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: const [
+              Text(
+                'Kabar Emas Terkini',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF0F172A),
+                ),
+              ),
+              Text(
+                'Wawasan Pasar',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Color(0xFF64748B),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+
+          // News Card Items
+          _buildHomeNewsTile(
+            title: 'Emas Mendekati Level Tertinggi Sepanjang Masa di Tengah...',
+            source: 'TradingView Newsroom',
+            timeAgo: '12m lalu',
+            tag: 'BULLISH',
+            tagColor: const Color(0xFF059669),
+            tagBg: const Color(0xFFECFDF5),
+            imageUrl: 'https://images.unsplash.com/photo-1610375461246-83df859d849d?auto=format&fit=crop&w=600&q=80',
+            onTap: () {
+              setState(() {
+                _selectedIndex = 1; // Pindah ke Navigasi Bar Berita
+              });
+            },
+          ),
+          const SizedBox(height: 12),
+          _buildHomeNewsTile(
+            title: 'Analisis Teknikal XAU/USD: Pola Breakout Menguji Resistance...',
+            source: 'TradingView / Analyst',
+            timeAgo: '28m lalu',
+            tag: 'ANALISIS',
+            tagColor: const Color(0xFFE93A56),
+            tagBg: const Color(0xFFFFF1F2),
+            imageUrl: 'https://images.unsplash.com/photo-1590283603385-17ffb3a7f29f?auto=format&fit=crop&w=600&q=80',
+            onTap: () {
+              setState(() {
+                _selectedIndex = 1; // Pindah ke Navigasi Bar Berita
+              });
+            },
+          ),
+        ],
       ),
     );
   }
@@ -785,6 +798,7 @@ class _HomeScreenState extends State<HomeScreen> {
     required String btnText,
     required IconData icon,
     required VoidCallback onTap,
+    required Color primaryColor,
   }) {
     return InkWell(
       onTap: onTap,
@@ -1034,7 +1048,7 @@ class _HomeScreenState extends State<HomeScreen> {
         user: _userProfile,
         onOpenEditProfile: () {},
         onOpenChangePassword: () {},
-        onRequestLogout: _handleLogout, // <-- diarahkan ke fungsi logout
+        onRequestLogout: _handleLogout,
         onShowToast: (msg) {},
       ),
     ];

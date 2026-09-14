@@ -237,7 +237,7 @@ class _GoldCalculatorState extends State<GoldCalculator> {
             style: TextStyle(
               fontSize: 20,
               fontWeight: FontWeight.bold,
-              color: Color(0xFF0F172A),
+              color: Color(0xFFBE123C),
               letterSpacing: -0.5,
             ),
           ),
@@ -267,7 +267,7 @@ class _GoldCalculatorState extends State<GoldCalculator> {
                       style: TextStyle(
                         fontSize: 13.5,
                         fontWeight: FontWeight.bold,
-                        color: Color(0xFF0F172A),
+                        color: Color(0xFFBE123C),
                       ),
                     ),
                     Container(
@@ -318,7 +318,7 @@ class _GoldCalculatorState extends State<GoldCalculator> {
                             padding: const EdgeInsets.symmetric(vertical: 8),
                             decoration: BoxDecoration(
                               color: _transactionType == 'buy'
-                                  ? const Color(0xFF0F172A)
+                                  ? const Color(0xFFBE123C)
                                   : Colors.transparent,
                               borderRadius: BorderRadius.circular(8),
                             ),
@@ -360,7 +360,7 @@ class _GoldCalculatorState extends State<GoldCalculator> {
                             padding: const EdgeInsets.symmetric(vertical: 8),
                             decoration: BoxDecoration(
                               color: _transactionType == 'sell'
-                                  ? const Color(0xFF0F172A)
+                                  ? const Color(0xFFBE123C)
                                   : Colors.transparent,
                               borderRadius: BorderRadius.circular(8),
                             ),
@@ -418,7 +418,7 @@ class _GoldCalculatorState extends State<GoldCalculator> {
                   style: const TextStyle(
                       fontSize: 15,
                       fontWeight: FontWeight.bold,
-                      color: Color(0xFF0F172A)),
+                      color: Color(0xFFBE123C)),
                   decoration: InputDecoration(
                     suffixText: 'GRAM',
                     suffixStyle: const TextStyle(
@@ -435,7 +435,7 @@ class _GoldCalculatorState extends State<GoldCalculator> {
                     ),
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
-                      borderSide: const BorderSide(color: Color(0xFF0F172A)),
+                      borderSide: const BorderSide(color: Color(0xFFBE123C)),
                     ),
                   ),
                 ),
@@ -460,12 +460,12 @@ class _GoldCalculatorState extends State<GoldCalculator> {
                             padding: const EdgeInsets.symmetric(vertical: 6),
                             decoration: BoxDecoration(
                               color: isSelected
-                                  ? const Color(0xFF0F172A)
+                                  ? const Color(0xFFBE123C)
                                   : Colors.white,
                               borderRadius: BorderRadius.circular(8),
                               border: Border.all(
                                 color: isSelected
-                                    ? const Color(0xFF0F172A)
+                                    ? const Color(0xFFBE123C)
                                     : const Color(0xFFE2E8F0),
                               ),
                             ),
@@ -510,7 +510,7 @@ class _GoldCalculatorState extends State<GoldCalculator> {
                       style: const TextStyle(
                           fontSize: 13.5,
                           fontWeight: FontWeight.w500,
-                          color: Color(0xFF0F172A)),
+                          color: Color(0xFFBE123C)),
                       onChanged: (val) {
                         if (val != null) {
                           setState(() {
@@ -564,7 +564,7 @@ class _GoldCalculatorState extends State<GoldCalculator> {
                   style: const TextStyle(
                       fontSize: 15,
                       fontWeight: FontWeight.bold,
-                      color: Color(0xFF0F172A)),
+                      color: Color(0xFFBE123C)),
                   decoration: InputDecoration(
                     prefixText: 'Rp ',
                     prefixStyle: const TextStyle(
@@ -581,7 +581,7 @@ class _GoldCalculatorState extends State<GoldCalculator> {
                     ),
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
-                      borderSide: const BorderSide(color: Color(0xFF0F172A)),
+                      borderSide: const BorderSide(color: Color(0xFFBE123C)),
                     ),
                   ),
                 ),
@@ -605,7 +605,7 @@ class _GoldCalculatorState extends State<GoldCalculator> {
                               style: TextStyle(
                                   fontSize: 13,
                                   fontWeight: FontWeight.w600,
-                                  color: Color(0xFF0F172A))),
+                                  color: Color(0xFFBE123C))),
                           Text(
                             'Tarif PPh 22: ${_hasNpwp ? "0.25% (dengan NPWP)" : "0.50% (tanpa NPWP)"}',
                             style: const TextStyle(
@@ -615,7 +615,7 @@ class _GoldCalculatorState extends State<GoldCalculator> {
                       ),
                       Switch(
                         value: _hasNpwp,
-                        activeThumbColor: const Color(0xFF0F172A), // Menggantikan activeColor
+                        activeThumbColor: const Color(0xFFBE123C), // Menggantikan activeColor
                         onChanged: (val) {
                           setState(() {
                             _hasNpwp = val;
@@ -658,14 +658,14 @@ class _GoldCalculatorState extends State<GoldCalculator> {
                       child: Row(
                         children: [
                           const Icon(Icons.menu_book_rounded,
-                              size: 16, color: Color(0xFF0F172A)),
+                              size: 16, color: Color(0xFFBE123C)),
                           const SizedBox(width: 4),
                           Text(
                             _showFormula ? 'Tutup Rumus' : 'Lihat Rumus',
                             style: const TextStyle(
                               fontSize: 12.5,
                               fontWeight: FontWeight.w600,
-                              color: Color(0xFF0F172A),
+                              color: Color(0xFFBE123C),
                             ),
                           ),
                         ],
@@ -696,14 +696,14 @@ class _GoldCalculatorState extends State<GoldCalculator> {
                       Row(
                         children: [
                           Icon(Icons.functions_rounded,
-                              size: 18, color: Color(0xFF0F172A)),
+                              size: 18, color: Color(0xFFBE123C)),
                           SizedBox(width: 6),
                           Text(
                             'Langkah Simulasi Perhitungan',
                             style: TextStyle(
                               fontSize: 13,
                               fontWeight: FontWeight.bold,
-                              color: Color(0xFF0F172A),
+                              color: Color(0xFFBE123C),
                             ),
                           ),
                         ],
@@ -739,7 +739,7 @@ class _GoldCalculatorState extends State<GoldCalculator> {
                           style: TextStyle(
                             fontSize: 12.5,
                             fontWeight: FontWeight.bold,
-                            color: Color(0xFF0F172A),
+                            color: Color(0xFFBE123C),
                           ),
                         ),
                       ],
@@ -770,7 +770,7 @@ class _GoldCalculatorState extends State<GoldCalculator> {
                           style: const TextStyle(
                             fontSize: 12.5,
                             fontWeight: FontWeight.bold,
-                            color: Color(0xFF0F172A),
+                            color: Color(0xFFBE123C),
                           ),
                         ),
                         const Divider(height: 12, color: Color(0xFFF1F5F9)),
@@ -787,7 +787,7 @@ class _GoldCalculatorState extends State<GoldCalculator> {
                               style: const TextStyle(
                                   fontSize: 12,
                                   fontWeight: FontWeight.bold,
-                                  color: Color(0xFF0F172A)),
+                                  color: Color(0xFFBE123C)),
                             ),
                           ],
                         ),
@@ -838,7 +838,7 @@ class _GoldCalculatorState extends State<GoldCalculator> {
                         style: const TextStyle(
                           fontSize: 11,
                           fontWeight: FontWeight.w600,
-                          color: Color(0xFF0F172A),
+                          color: Color(0xFFBE123C),
                         ),
                       ),
                     ),
@@ -870,7 +870,7 @@ class _GoldCalculatorState extends State<GoldCalculator> {
                       style: const TextStyle(
                         fontSize: 32,
                         fontWeight: FontWeight.w800,
-                        color: Color(0xFF0F172A),
+                        color: Color(0xFFBE123C),
                         letterSpacing: -0.5,
                       ),
                     ),
@@ -916,7 +916,7 @@ class _GoldCalculatorState extends State<GoldCalculator> {
                                 style: TextStyle(
                                   fontSize: 12.5,
                                   fontWeight: FontWeight.bold,
-                                  color: Color(0xFF0F172A),
+                                  color: Color(0xFFBE123C),
                                 ),
                               ),
                             ],
@@ -952,7 +952,7 @@ class _GoldCalculatorState extends State<GoldCalculator> {
                             style: const TextStyle(
                               fontSize: 13,
                               fontWeight: FontWeight.bold,
-                              color: Color(0xFF0F172A),
+                              color: Color(0xFFBE123C),
                             ),
                           ),
                         ],
@@ -981,7 +981,7 @@ class _GoldCalculatorState extends State<GoldCalculator> {
                     style: ElevatedButton.styleFrom(
                       backgroundColor: _savedSuccess
                           ? const Color(0xFF059669)
-                          : const Color(0xFF0F172A),
+                          : const Color(0xFFBE123C),
                       foregroundColor: Colors.white,
                       padding: const EdgeInsets.symmetric(vertical: 12),
                       elevation: 0,
@@ -1001,7 +1001,7 @@ class _GoldCalculatorState extends State<GoldCalculator> {
                     label: const Text('Lihat Rincian Lengkap'),
                     style: OutlinedButton.styleFrom(
                       backgroundColor: const Color(0xFFF8FAFC),
-                      foregroundColor: const Color(0xFF0F172A),
+                      foregroundColor: const Color(0xFFBE123C),
                       side: const BorderSide(color: Color(0xFFE2E8F0)),
                       padding: const EdgeInsets.symmetric(vertical: 12),
                       shape: RoundedRectangleBorder(
@@ -1030,7 +1030,7 @@ class _GoldCalculatorState extends State<GoldCalculator> {
           style: const TextStyle(
             fontSize: 12.5,
             fontWeight: FontWeight.w600,
-            color: Color(0xFF0F172A),
+            color: Color(0xFFBE123C),
           ),
         ),
       ],
