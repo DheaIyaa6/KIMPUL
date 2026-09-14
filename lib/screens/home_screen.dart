@@ -10,7 +10,7 @@ import 'package:kimpul/screens/calculatorhub_screen.dart';
 import 'package:kimpul/screens/news_screen.dart';
 import 'package:kimpul/screens/history_screen.dart';
 import 'package:kimpul/screens/profile_screen.dart';
-import 'package:kimpul/screens/login_screen.dart'; // <-- import halaman login
+import 'package:kimpul/screens/login_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -22,17 +22,17 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   int _selectedIndex = 0;
 
-  // 🌟 Controller WebView Mini Chart
+  // Controller WebView Mini Chart
   late WebViewController _miniChartController;
 
-  // 🌟 Timer & Waktu Real-time
+  // Timer & Waktu Real-time
   late Timer _timer;
   late DateTime _currentTime;
 
-  // Data harga emas (nanti diganti hasil fetch API asli)
-  double _goldPrice = 2345.50;
-  final double _goldChangePercent = 1.24;
-  final double _goldChangeValue = 28.80;
+  // Controller & Timer Slider Berita Auto-Slide 10 Detik
+  late PageController _newsPageController;
+  late Timer _newsTimer;
+  int _currentNewsPage = 0;
 
   // State navigasi internal di tab Kalkulator
   CalcView? _selectedCalcView;
@@ -40,32 +40,44 @@ class _HomeScreenState extends State<HomeScreen> {
   // List Riwayat Perhitungan Local State
   final List<dynamic> _historyItems = [];
 
-  // Dummy News Data
+  // Dummy News Data (3 Item Berita untuk Carousel Slider)
   final List<NewsItem> _newsItems = [
     NewsItem(
       id: '1',
-      title: 'Emas Mendekati Level Tertinggi Sepanjang Masa di Tengah...',
-      summary: 'Harga emas dunia (XAU/USD) terus menguat di tengah ekspektasi pasar terhadap kebijakan moneter Bank Sentral AS.',
+      title: 'Emas Mendekati Level Tertinggi Sepanjang Masa di Tengah Moneter AS...',
+      summary: 'Harga emas dunia (XAU/USD) terus menguat di tengah ekspektasi pasar terhadap kebijakan mo...',
       source: 'TradingView Newsroom',
       timeAgo: '12m lalu',
       readTime: '3 mnt baca',
       category: 'XAU/USD',
       tagType: 'BULLISH',
       imageUrl: 'https://images.unsplash.com/photo-1610375461246-83df859d849d?auto=format&fit=crop&w=600&q=80',
-      fullContent: 'Isi lengkap berita...',
+      fullContent: 'Isi lengkap berita 1...',
       featured: true,
     ),
     NewsItem(
       id: '2',
       title: 'Analisis Teknikal XAU/USD: Pola Breakout Menguji Resistance...',
-      summary: 'Level Pivot harian menunjukkan indikasi konsolidasi sebelum melanjutkan tren naik.',
+      summary: 'Level Pivot harian menunjukkan indikasi konsolidasi sebelum melanjutkan tren naik pasar...',
       source: 'TradingView / Analyst',
       timeAgo: '28m lalu',
       readTime: '2 mnt baca',
       category: 'Analisis',
       tagType: 'ANALISIS',
       imageUrl: 'https://images.unsplash.com/photo-1590283603385-17ffb3a7f29f?auto=format&fit=crop&w=600&q=80',
-      fullContent: 'Isi lengkap berita...',
+      fullContent: 'Isi lengkap berita 2...',
+    ),
+    NewsItem(
+      id: '3',
+      title: 'Prospek Pasar Emas Fisik & Suku Bunga Acuan Bank Indonesia...',
+      summary: 'Permintaan emas batangan lokal meningkat seiring pergerakan nilai tukar Rupiah...',
+      source: 'Market Watch',
+      timeAgo: '1j lalu',
+      readTime: '4 mnt baca',
+      category: 'Emas Fisik',
+      tagType: 'BULLISH',
+      imageUrl: 'https://images.unsplash.com/photo-1589758438368-0ad531db3366?auto=format&fit=crop&w=600&q=80',
+      fullContent: 'Isi lengkap berita 3...',
     ),
   ];
 
@@ -83,23 +95,20 @@ class _HomeScreenState extends State<HomeScreen> {
   // Fungsi Pengecekan Status Aktif/Tutup Pasar Emas Dunia (XAUUSD)
   bool _isMarketActive() {
     final now = DateTime.now().toUtc();
-    final weekday = now.weekday; // 1 = Senin, ..., 6 = Sabtu, 7 = Minggu
+    final weekday = now.weekday;
     final hour = now.hour;
 
-    // 1. Libur Akhir Pekan (Weekend)
     if (weekday == DateTime.saturday) return false;
-    if (weekday == DateTime.sunday && hour < 22) return false; // Belum jam 05.00 WIB Senin
-    if (weekday == DateTime.friday && hour >= 21) return false;  // Sudah lewat jam 04.00 WIB Sabtu
+    if (weekday == DateTime.sunday && hour < 22) return false;
+    if (weekday == DateTime.friday && hour >= 21) return false;
 
-    // 2. Daily Closing Break (Istirahat Harian Pasar Emas: ~04:00 - 05:00 WIB)
     if (hour == 21) {
       return false;
     }
 
-    return true; // Pasar Aktif
+    return true;
   }
 
-  // 🌟 Fungsi Logout
   void _handleLogout() {
     Navigator.pushAndRemoveUntil(
       context,
@@ -113,7 +122,7 @@ class _HomeScreenState extends State<HomeScreen> {
     super.initState();
     _initMiniChartWidget();
 
-    // 🌟 Inisialisasi waktu awal & timer 1 detik
+    // Inisialisasi Waktu Real-time
     _currentTime = DateTime.now();
     _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (mounted) {
@@ -122,16 +131,35 @@ class _HomeScreenState extends State<HomeScreen> {
         });
       }
     });
+
+    // 🌟 INISIALISASI CAROUSEL: DARI SLIDE 3 LANGSUNG JUMP KE SLIDE 1 (TANPA MUNDUR KENA SLIDE 2)
+    _newsPageController = PageController(initialPage: 0);
+    _newsTimer = Timer.periodic(const Duration(seconds: 10), (timer) {
+      if (mounted && _newsPageController.hasClients) {
+        if (_currentNewsPage < _newsItems.length - 1) {
+          _currentNewsPage++;
+          _newsPageController.animateToPage(
+            _currentNewsPage,
+            duration: const Duration(milliseconds: 600),
+            curve: Curves.easeInOut,
+          );
+        } else {
+          // Jika berada di Slide 3, langsung melompat (jump) ke Slide 1 tanpa animasi mundur
+          _currentNewsPage = 0;
+          _newsPageController.jumpToPage(0);
+        }
+      }
+    });
   }
 
   @override
   void dispose() {
-    // 🌟 Hentikan timer untuk menghindari memory leak saat screen ditutup
     _timer.cancel();
+    _newsTimer.cancel();
+    _newsPageController.dispose();
     super.dispose();
   }
 
-  // Inisialisasi TradingView Mini Chart Widget
   void _initMiniChartWidget() {
     final String miniChartHtml = '''
       <!DOCTYPE html>
@@ -185,7 +213,6 @@ class _HomeScreenState extends State<HomeScreen> {
     final bool marketActive = _isMarketActive();
     final primaryColor = Theme.of(context).colorScheme.primary;
 
-    // 🌟 Format Tanggal & Jam Bahasa Indonesia
     String formattedDate = DateFormat('EEEE, d MMMM yyyy', 'id_ID').format(_currentTime);
     String formattedTime = DateFormat('HH:mm:ss', 'id_ID').format(_currentTime);
 
@@ -194,12 +221,11 @@ class _HomeScreenState extends State<HomeScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // 🌟 Greeting User + Realtime Date & Clock (Sebelah Kanan)
+          // Greeting & Tanggal Jam Real-time
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Sisi Kiri: Greeting
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -219,8 +245,6 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 ],
               ),
-
-              // Sisi Kanan: Hari, Tanggal, & Jam Real-Time
               Column(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
@@ -246,154 +270,229 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ],
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 20),
 
-          // Card Tentang KIMPUL
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: const Color(0xFFE2E8F0)),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.02),
-                  blurRadius: 8,
-                  offset: const Offset(0, 2),
+          // HEADER BERITA (DILUAR KOTAK/CARD)
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'Berita',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF0F172A),
+                  letterSpacing: -0.3,
                 ),
-              ],
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Row(
-                      children: [
-                        Container(
-                          width: 32,
-                          height: 32,
-                          decoration: const BoxDecoration(
-                            color: Color(0xFFFFE4E6),
-                            shape: BoxShape.circle,
-                          ),
-                          child: const Icon(
-                            Icons.info_outline_rounded,
-                            color: Color(0xFFE93A56),
-                            size: 20,
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: const [
-                            Text(
-                              'Tentang KIMPUL',
-                              style: TextStyle(
-                                fontSize: 15,
-                                fontWeight: FontWeight.bold,
-                                color: Color(0xFF0F172A),
-                              ),
-                            ),
-                            Text(
-                              'Identitas Resmi Aplikasi',
-                              style: TextStyle(
-                                fontSize: 11,
-                                color: Color(0xFF64748B),
-                              ),
-                            ),
-                          ],
+              ),
+              InkWell(
+                onTap: () {
+                  setState(() {
+                    _selectedIndex = 1; // Navigasi ke Tab Berita
+                  });
+                },
+                borderRadius: BorderRadius.circular(8),
+                child: const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                  child: Icon(
+                    Icons.chevron_right_rounded,
+                    size: 26,
+                    color: Color(0xFF0F172A),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+
+          // KOTAK BERITA MELAYANG
+          SizedBox(
+            height: 260,
+            child: PageView.builder(
+              controller: _newsPageController,
+              onPageChanged: (index) {
+                setState(() {
+                  _currentNewsPage = index;
+                });
+              },
+              itemCount: _newsItems.length,
+              itemBuilder: (context, index) {
+                final news = _newsItems[index];
+                return InkWell(
+                  onTap: () {
+                    setState(() {
+                      _selectedIndex = 1; // Navigasi ke Tab Berita saat card diklik
+                    });
+                  },
+                  borderRadius: BorderRadius.circular(16),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: const Color(0xFFE2E8F0)),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.05),
+                          blurRadius: 10,
+                          offset: const Offset(0, 4),
                         ),
                       ],
                     ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFFFF1F2),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: const Text(
-                        'K • I • M • P • U • L',
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.bold,
-                          color: Color(0xFFE93A56),
-                          letterSpacing: 1.0,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // GAMBAR DI ATAS DENGAN JUDUL TEKS DI ATAS GAMBAR
+                        Expanded(
+                          flex: 6,
+                          child: Stack(
+                            children: [
+                              ClipRRect(
+                                borderRadius: const BorderRadius.vertical(
+                                  top: Radius.circular(16),
+                                ),
+                                child: Image.network(
+                                  news.imageUrl,
+                                  width: double.infinity,
+                                  height: double.infinity,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (context, error, stackTrace) {
+                                    return Container(
+                                      color: const Color(0xFFF1F5F9),
+                                      child: const Center(
+                                        child: Icon(
+                                          Icons.newspaper,
+                                          size: 40,
+                                          color: Color(0xFF94A3B8),
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                ),
+                              ),
+                              Positioned.fill(
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    borderRadius: const BorderRadius.vertical(
+                                      top: Radius.circular(16),
+                                    ),
+                                    gradient: LinearGradient(
+                                      begin: Alignment.topCenter,
+                                      end: Alignment.bottomCenter,
+                                      colors: [
+                                        Colors.transparent,
+                                        Colors.black.withValues(alpha: 0.85),
+                                      ],
+                                      stops: const [0.3, 1.0],
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              Positioned(
+                                left: 14,
+                                right: 14,
+                                bottom: 12,
+                                child: Text(
+                                  news.title,
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.white,
+                                    height: 1.3,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
-                      ),
+
+                        // DESKRIPSI RINGKAS & FOOTER DI BAWAH FOTO
+                        Expanded(
+                          flex: 4,
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 14,
+                              vertical: 10,
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(
+                                  news.summary,
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    color: Color(0xFF475569),
+                                    height: 1.35,
+                                  ),
+                                ),
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Text(
+                                      '${news.source} • ${news.timeAgo}',
+                                      style: const TextStyle(
+                                        fontSize: 11,
+                                        color: Color(0xFF64748B),
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                    Row(
+                                      children: [
+                                        const Icon(
+                                          Icons.access_time_rounded,
+                                          size: 14,
+                                          color: Color(0xFF64748B),
+                                        ),
+                                        const SizedBox(width: 4),
+                                        Text(
+                                          news.readTime,
+                                          style: const TextStyle(
+                                            fontSize: 11,
+                                            color: Color(0xFF64748B),
+                                            fontWeight: FontWeight.w500,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
-                  ],
-                ),
-                const SizedBox(height: 14),
-                RichText(
-                  text: const TextSpan(
-                    style: TextStyle(fontSize: 12.5, color: Color(0xFF334155), height: 1.5),
-                    children: [
-                      TextSpan(
-                        text: 'KIMPUL ',
-                        style: TextStyle(fontWeight: FontWeight.bold),
-                      ),
-                      TextSpan(text: 'merupakan singkatan dari '),
-                      TextSpan(
-                        text: 'K',
-                        style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFFE93A56)),
-                      ),
-                      TextSpan(text: 'alkulator '),
-                      TextSpan(
-                        text: 'I',
-                        style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFFE93A56)),
-                      ),
-                      TextSpan(text: 'nformasi '),
-                      TextSpan(
-                        text: 'M',
-                        style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFFE93A56)),
-                      ),
-                      TextSpan(text: 'arket untuk '),
-                      TextSpan(
-                        text: 'P',
-                        style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFFE93A56)),
-                      ),
-                      TextSpan(text: 'erhitungan '),
-                      TextSpan(
-                        text: 'U',
-                        style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFFE93A56)),
-                      ),
-                      TextSpan(text: 'ntung & '),
-                      TextSpan(
-                        text: 'L',
-                        style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFFE93A56)),
-                      ),
-                      TextSpan(
-                        text: 'oss, yaitu aplikasi yang dirancang untuk membantu pengguna melakukan berbagai perhitungan dalam aktivitas jual beli emas.',
-                      ),
-                    ],
                   ),
-                ),
-                const SizedBox(height: 16),
-                Row(
-                  children: [
-                    Expanded(child: _buildAbbrTile('K', 'alkulator')),
-                    const SizedBox(width: 8),
-                    Expanded(child: _buildAbbrTile('I', 'nformasi')),
-                    const SizedBox(width: 8),
-                    Expanded(child: _buildAbbrTile('M', 'arket')),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    Expanded(child: _buildAbbrTile('P', 'erhitungan')),
-                    const SizedBox(width: 8),
-                    Expanded(child: _buildAbbrTile('U', 'ntung')),
-                    const SizedBox(width: 8),
-                    Expanded(child: _buildAbbrTile('L', 'oss')),
-                  ],
-                ),
-              ],
+                );
+              },
             ),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 10),
+
+          // INDIKATOR TITIK SLIDER (DOTS) DIBAWAH KOTAK MELAYANG
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: List.generate(
+              _newsItems.length,
+              (index) => AnimatedContainer(
+                duration: const Duration(milliseconds: 300),
+                margin: const EdgeInsets.symmetric(horizontal: 3),
+                width: _currentNewsPage == index ? 16 : 6,
+                height: 6,
+                decoration: BoxDecoration(
+                  color: _currentNewsPage == index
+                      ? primaryColor
+                      : const Color(0xFFCBD5E1),
+                  borderRadius: BorderRadius.circular(3),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 20),
 
           // Market Hero Card: Gold Spot
           Container(
@@ -452,8 +551,6 @@ class _HomeScreenState extends State<HomeScreen> {
                         ],
                       ),
                     ),
-
-                    // STATUS PASAR REAL-TIME
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                       decoration: BoxDecoration(
@@ -486,8 +583,6 @@ class _HomeScreenState extends State<HomeScreen> {
                   ],
                 ),
                 const SizedBox(height: 16),
-
-                // BOX GRAFIK TRADINGVIEW
                 Container(
                   width: double.infinity,
                   height: 200,
@@ -583,7 +678,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   icon: Icons.calculate_outlined,
                   onTap: () {
                     setState(() {
-                      _selectedIndex = 2; // Pindah ke Tab Kalkulator
+                      _selectedIndex = 2;
                       _selectedCalcView = CalcView.pivot;
                     });
                   },
@@ -599,7 +694,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   icon: Icons.account_balance_wallet_outlined,
                   onTap: () {
                     setState(() {
-                      _selectedIndex = 2; // Pindah ke Tab Kalkulator
+                      _selectedIndex = 2;
                       _selectedCalcView = CalcView.gold;
                     });
                   },
@@ -625,7 +720,7 @@ class _HomeScreenState extends State<HomeScreen> {
               GestureDetector(
                 onTap: () {
                   setState(() {
-                    _selectedIndex = 3; // Pindah ke Navigasi Bar Riwayat
+                    _selectedIndex = 3;
                   });
                 },
                 child: const Text(
@@ -710,7 +805,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 InkWell(
                   onTap: () {
                     setState(() {
-                      _selectedIndex = 3; // Pindah ke Riwayat
+                      _selectedIndex = 3;
                     });
                   },
                   child: Row(
@@ -733,65 +828,116 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           const SizedBox(height: 24),
 
-          // SECTION: Kabar Emas Terkini
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: const [
-              Text(
-                'Kabar Emas Terkini',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF0F172A),
+          // Card Tentang KIMPUL (Bagian Paling Bawah)
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: const Color(0xFFE2E8F0)),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.02),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
                 ),
-              ),
-              Text(
-                'Wawasan Pasar',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Color(0xFF64748B),
+              ],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      width: 36,
+                      height: 36,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFFF1F2),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: const Color(0xFFFECDD3)),
+                      ),
+                      child: const Icon(
+                        Icons.info_outline_rounded,
+                        color: Color(0xFFE93A56),
+                        size: 20,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: const [
+                        Text(
+                          'Tentang KIMPUL',
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFF0F172A),
+                          ),
+                        ),
+                        Text(
+                          'Identitas Resmi Aplikasi',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: Color(0xFF64748B),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-
-          // News Card Items
-          _buildHomeNewsTile(
-            title: 'Emas Mendekati Level Tertinggi Sepanjang Masa di Tengah...',
-            source: 'TradingView Newsroom',
-            timeAgo: '12m lalu',
-            tag: 'BULLISH',
-            tagColor: const Color(0xFF059669),
-            tagBg: const Color(0xFFECFDF5),
-            imageUrl: 'https://images.unsplash.com/photo-1610375461246-83df859d849d?auto=format&fit=crop&w=600&q=80',
-            onTap: () {
-              setState(() {
-                _selectedIndex = 1; // Pindah ke Navigasi Bar Berita
-              });
-            },
-          ),
-          const SizedBox(height: 12),
-          _buildHomeNewsTile(
-            title: 'Analisis Teknikal XAU/USD: Pola Breakout Menguji Resistance...',
-            source: 'TradingView / Analyst',
-            timeAgo: '28m lalu',
-            tag: 'ANALISIS',
-            tagColor: const Color(0xFFE93A56),
-            tagBg: const Color(0xFFFFF1F2),
-            imageUrl: 'https://images.unsplash.com/photo-1590283603385-17ffb3a7f29f?auto=format&fit=crop&w=600&q=80',
-            onTap: () {
-              setState(() {
-                _selectedIndex = 1; // Pindah ke Navigasi Bar Berita
-              });
-            },
+                const SizedBox(height: 14),
+                RichText(
+                  text: const TextSpan(
+                    style: TextStyle(fontSize: 12.5, color: Color(0xFF334155), height: 1.5),
+                    children: [
+                      TextSpan(
+                        text: 'KIMPUL ',
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      TextSpan(text: 'merupakan singkatan dari '),
+                      TextSpan(
+                        text: 'K',
+                        style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF0F172A)),
+                      ),
+                      TextSpan(text: 'alkulator '),
+                      TextSpan(
+                        text: 'I',
+                        style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF0F172A)),
+                      ),
+                      TextSpan(text: 'nformasi '),
+                      TextSpan(
+                        text: 'M',
+                        style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF0F172A)),
+                      ),
+                      TextSpan(text: 'arket untuk '),
+                      TextSpan(
+                        text: 'P',
+                        style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF0F172A)),
+                      ),
+                      TextSpan(text: 'erhitungan '),
+                      TextSpan(
+                        text: 'U',
+                        style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF0F172A)),
+                      ),
+                      TextSpan(text: 'ntung & '),
+                      TextSpan(
+                        text: 'L',
+                        style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF0F172A)),
+                      ),
+                      TextSpan(
+                        text: 'oss, yaitu aplikasi yang dirancang untuk membantu pengguna melakukan berbagai perhitungan dalam aktivitas jual beli emas.',
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
       ),
     );
   }
 
-  // Card Widget untuk Kalkulasi Cepat
   Widget _buildQuickCalcCard({
     required String title,
     required String subtitle,
@@ -856,124 +1002,6 @@ class _HomeScreenState extends State<HomeScreen> {
               ],
             ),
           ],
-        ),
-      ),
-    );
-  }
-
-  // Widget Tile Berita di Home
-  Widget _buildHomeNewsTile({
-    required String title,
-    required String source,
-    required String timeAgo,
-    required String tag,
-    required Color tagColor,
-    required Color tagBg,
-    required String imageUrl,
-    required VoidCallback onTap,
-  }) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(16),
-      child: Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: const Color(0xFFE2E8F0)),
-        ),
-        child: Row(
-          children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(10),
-              child: Image.network(
-                imageUrl,
-                width: 70,
-                height: 70,
-                fit: BoxFit.cover,
-                errorBuilder: (context, error, stackTrace) {
-                  return Container(
-                    width: 70,
-                    height: 70,
-                    color: const Color(0xFFF1F5F9),
-                    child: const Icon(Icons.newspaper, color: Color(0xFF94A3B8)),
-                  );
-                },
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: tagBg,
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: Text(
-                      tag,
-                      style: TextStyle(
-                        fontSize: 9.5,
-                        fontWeight: FontWeight.bold,
-                        color: tagColor,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    title,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontSize: 12.5,
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFF0F172A),
-                      height: 1.25,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    '$source • $timeAgo',
-                    style: const TextStyle(
-                      fontSize: 10.5,
-                      color: Color(0xFF64748B),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildAbbrTile(String letter, String word) {
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 8),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF8FAFC),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
-      ),
-      child: Center(
-        child: RichText(
-          textAlign: TextAlign.center,
-          text: TextSpan(
-            style: const TextStyle(fontSize: 11.5, color: Color(0xFF475569)),
-            children: [
-              TextSpan(
-                text: '$letter ',
-                style: const TextStyle(
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFFE93A56),
-                ),
-              ),
-              TextSpan(text: word),
-            ],
-          ),
         ),
       ),
     );
