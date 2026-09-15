@@ -1072,8 +1072,6 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
       ProfileScreen(
         user: _userProfile,
-        onOpenEditProfile: () {},
-        onOpenChangePassword: () {},
         onRequestLogout: _handleLogout,
         onShowToast: (msg) {},
       ),

@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'edit_profile_screen.dart';
+import 'change_password_screen.dart';
 
 // Model User Profile untuk Flutter
 class UserProfile {
@@ -23,8 +25,9 @@ class UserProfile {
 
 class ProfileScreen extends StatefulWidget {
   final UserProfile user;
-  final VoidCallback onOpenEditProfile;
-  final VoidCallback onOpenChangePassword;
+  final Future<void> Function(UserProfile updatedUser)? onSaveProfile;
+  final Future<void> Function(String oldPassword, String newPassword)?
+      onChangePassword;
   final VoidCallback onRequestLogout;
   final Function(String msg) onShowToast;
   final VoidCallback? onReplaySplash;
@@ -32,8 +35,8 @@ class ProfileScreen extends StatefulWidget {
   const ProfileScreen({
     super.key,
     required this.user,
-    required this.onOpenEditProfile,
-    required this.onOpenChangePassword,
+    this.onSaveProfile,
+    this.onChangePassword,
     required this.onRequestLogout,
     required this.onShowToast,
     this.onReplaySplash,
@@ -46,6 +49,49 @@ class ProfileScreen extends StatefulWidget {
 class _ProfileScreenState extends State<ProfileScreen> {
   bool _showSessionInfo = false;
   bool _showPrivacyInfo = false;
+
+  // User yang sedang ditampilkan, bisa berubah setelah edit profil
+  late UserProfile _currentUser;
+
+  @override
+  void initState() {
+    super.initState();
+    _currentUser = widget.user;
+  }
+
+  // Navigasi ke halaman Edit Profil (file terpisah: edit_profile_screen.dart)
+  Future<void> _openEditProfile() async {
+    final updated = await Navigator.push<UserProfile>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => EditProfileScreen(
+          user: _currentUser,
+          onSave: widget.onSaveProfile,
+        ),
+      ),
+    );
+
+    if (updated != null) {
+      setState(() => _currentUser = updated);
+      widget.onShowToast('Profil berhasil diperbarui');
+    }
+  }
+
+  // Navigasi ke halaman Ubah Kata Sandi (file terpisah: change_password_screen.dart)
+  Future<void> _openChangePassword() async {
+    final success = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ChangePasswordScreen(
+          onSubmit: widget.onChangePassword,
+        ),
+      ),
+    );
+
+    if (success == true) {
+      widget.onShowToast('Kata sandi berhasil diubah');
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -93,7 +139,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       bottom: 0,
                       right: 0,
                       child: InkWell(
-                        onTap: widget.onOpenEditProfile,
+                        onTap: _openEditProfile,
                         borderRadius: BorderRadius.circular(14),
                         child: Container(
                           width: 28,
@@ -119,7 +165,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Text(
-                      widget.user.name,
+                      _currentUser.name,
                       style: const TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
@@ -128,28 +174,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ),
                     const SizedBox(width: 4),
                     InkWell(
-                      onTap: widget.onOpenEditProfile,
+                      onTap: _openEditProfile,
                       child: const Icon(
                         Icons.edit_outlined,
                         size: 16,
                         color: Color(0xFF94A3B8),
                       ),
                     ),
-                    const SizedBox(width: 4),
-                    const Icon(
-                      Icons.verified_rounded,
-                      size: 18,
-                      color: Color(0xFF059669),
-                    ),
                   ],
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  widget.user.email,
+                  _currentUser.email,
                   style: const TextStyle(fontSize: 13, color: Color(0xFF64748B)),
                 ),
                 Text(
-                  widget.user.phone,
+                  _currentUser.phone,
                   style: const TextStyle(fontSize: 12, color: Color(0xFF94A3B8)),
                 ),
               ],
@@ -180,14 +220,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   icon: Icons.person_outlined,
                   title: 'Edit Profil',
                   subtitle: 'Ubah nama, nomor telepon, atau kontak',
-                  onTap: widget.onOpenEditProfile,
+                  onTap: _openEditProfile,
                 ),
                 const Divider(height: 1, color: Color(0xFFF1F5F9)),
                 _buildMenuItem(
                   icon: Icons.lock_reset_rounded,
                   title: 'Ubah Kata Sandi',
                   subtitle: 'Perbarui keamanan kata sandi akun',
-                  onTap: widget.onOpenChangePassword,
+                  onTap: _openChangePassword,
                 ),
               ],
             ),
