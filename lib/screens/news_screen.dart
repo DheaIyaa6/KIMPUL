@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+import 'package:webfeed_plus/webfeed_plus.dart';
 
 // Model Berita untuk Flutter
 class NewsItem {
@@ -49,6 +51,10 @@ class _NewsScreenState extends State<NewsScreen> {
   int _loadedCount = 4;
   bool _isLoadingMore = false;
   bool _isRefreshing = false;
+  bool _isLoadingLive = true;
+
+  // List internal untuk menampung berita Live TradingView
+  List<NewsItem> _liveNewsItems = [];
 
   @override
   void initState() {
@@ -58,6 +64,9 @@ class _NewsScreenState extends State<NewsScreen> {
         _searchQuery = _searchController.text;
       });
     });
+
+    // Ambil Berita Live TradingView saat Pertama kali Layar Dimuat
+    _fetchLiveTradingViewNews();
   }
 
   @override
@@ -66,8 +75,87 @@ class _NewsScreenState extends State<NewsScreen> {
     super.dispose();
   }
 
+  // FUNGSI FETCH LIVE RSS TRADINGVIEW
+  Future<void> _fetchLiveTradingViewNews() async {
+    try {
+      final response = await http.get(
+        Uri.parse('https://www.tradingview.com/feed/'),
+      );
+
+      if (response.statusCode == 200) {
+        final rssFeed = RssFeed.parse(response.body);
+
+        if (rssFeed.items != null && rssFeed.items!.isNotEmpty) {
+          final List<NewsItem> fetchedItems = [];
+
+          for (int i = 0; i < rssFeed.items!.length; i++) {
+            final item = rssFeed.items![i];
+
+            // Parsing Waktu Sederhana
+            String timeFormatted = 'Terbaru';
+            if (item.pubDate != null) {
+              final diff = DateTime.now().difference(item.pubDate!);
+              if (diff.inMinutes < 60) {
+                timeFormatted = '${diff.inMinutes}m lalu';
+              } else if (diff.inHours < 24) {
+                timeFormatted = '${diff.inHours}j lalu';
+              } else {
+                timeFormatted = '${diff.inDays}hr lalu';
+              }
+            }
+
+            // Ekstraksi Ringkasan Teks Tanpa HTML Tag
+            String cleanSummary = (item.description ?? '')
+                .replaceAll(RegExp(r'<[^>]*>'), '')
+                .trim();
+            if (cleanSummary.isEmpty) {
+              cleanSummary = 'Klik untuk membaca analisa dan detail berita pasar terkini...';
+            }
+
+            fetchedItems.add(
+              NewsItem(
+                id: item.guid ?? '$i-${DateTime.now().millisecondsSinceEpoch}',
+                title: item.title ?? 'Berita Pasar Emas & Komoditas',
+                summary: cleanSummary,
+                source: 'TradingView Newsroom',
+                timeAgo: timeFormatted,
+                readTime: '3 mnt baca',
+                category: 'XAU/USD',
+                tagType: 'MARKET',
+                imageUrl: 'https://images.unsplash.com/photo-1610375461246-83df859d849d?auto=format&fit=crop&w=600&q=80',
+                fullContent: item.link ?? '',
+                featured: i == 0, // Item pertama dijadikan Sorotan Utama
+              ),
+            );
+          }
+
+          if (mounted) {
+            setState(() {
+              _liveNewsItems = fetchedItems;
+              _isLoadingLive = false;
+            });
+          }
+          return;
+        }
+      }
+    } catch (_) {
+      // Fallback ke data bawaan jika offline / gagal fetch
+    }
+
+    if (mounted) {
+      setState(() {
+        _liveNewsItems = widget.newsItems;
+        _isLoadingLive = false;
+      });
+    }
+  }
+
+  List<NewsItem> get _activeNewsList {
+    return _liveNewsItems.isNotEmpty ? _liveNewsItems : widget.newsItems;
+  }
+
   List<NewsItem> get _filteredNews {
-    return widget.newsItems.where((item) {
+    return _activeNewsList.where((item) {
       final query = _searchQuery.toLowerCase().trim();
 
       final matchesSearch = query.isEmpty ||
@@ -94,7 +182,7 @@ class _NewsScreenState extends State<NewsScreen> {
     }
   }
 
-  // REFRESH BERITA
+  // REFRESH BERITA LIVE
   void _handleRefresh() async {
     if (_isRefreshing) return;
 
@@ -102,7 +190,7 @@ class _NewsScreenState extends State<NewsScreen> {
       _isRefreshing = true;
     });
 
-    await Future.delayed(const Duration(milliseconds: 600));
+    await _fetchLiveTradingViewNews();
 
     if (mounted) {
       setState(() {
@@ -120,7 +208,7 @@ class _NewsScreenState extends State<NewsScreen> {
     // Penanganan featured article
     NewsItem? featuredArticle;
 
-    for (final n in widget.newsItems) {
+    for (final n in _activeNewsList) {
       if (n.featured) {
         featuredArticle = n;
         break;
@@ -128,7 +216,7 @@ class _NewsScreenState extends State<NewsScreen> {
     }
 
     featuredArticle ??=
-        widget.newsItems.isNotEmpty ? widget.newsItems.first : null;
+        _activeNewsList.isNotEmpty ? _activeNewsList.first : null;
 
     final regularArticles =
         filtered.where((n) => n.id != featuredArticle?.id).toList();
@@ -188,7 +276,7 @@ class _NewsScreenState extends State<NewsScreen> {
                 children: [
                   IconButton(
                     onPressed: _isRefreshing ? null : _handleRefresh,
-                    icon: _isRefreshing
+                    icon: _isRefreshing || _isLoadingLive
                         ? const SizedBox(
                             width: 15,
                             height: 15,
@@ -298,15 +386,181 @@ class _NewsScreenState extends State<NewsScreen> {
 
           const SizedBox(height: 16),
 
-          // HERO FEATURED ARTICLE (LANGSUNG DIBAWAH SEARCH BAR)
-          if (featuredArticle != null &&
-              featuredArticle.title.isNotEmpty &&
-              _searchQuery.isEmpty) ...[
+            if (_isLoadingLive) ...[
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 32),
+                child: Center(
+                  child: CircularProgressIndicator(),
+                ),
+              ),
+            ] else ...[
+            // HERO FEATURED ARTICLE (LANGSUNG DIBAWAH SEARCH BAR)
+            if (featuredArticle != null &&
+                featuredArticle.title.isNotEmpty &&
+                _searchQuery.isEmpty) ...[
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: const [
+                  Text(
+                    'SOROTAN UTAMA',
+                    style: TextStyle(
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF515F74),
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                  Text(
+                    'Pilihan Editor',
+                    style: TextStyle(
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF0F172A),
+                    ),
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 8),
+
+              InkWell(
+                onTap: () => widget.onOpenNewsDetail(featuredArticle!),
+                borderRadius: BorderRadius.circular(16),
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: const Color(0xFFE2E8F0),
+                    ),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Stack(
+                        children: [
+                          ClipRRect(
+                            borderRadius: const BorderRadius.vertical(
+                              top: Radius.circular(16),
+                            ),
+                            child: SizedBox(
+                              height: 180,
+                              width: double.infinity,
+                              child: Image.network(
+                                featuredArticle.imageUrl,
+                                fit: BoxFit.cover,
+                                errorBuilder: (context, error, stackTrace) =>
+                                    Container(
+                                  color: const Color(0xFFE2E8F0),
+                                ),
+                              ),
+                            ),
+                          ),
+
+                          Positioned.fill(
+                            child: Container(
+                              decoration: BoxDecoration(
+                                borderRadius: const BorderRadius.vertical(
+                                  top: Radius.circular(16),
+                                ),
+                                gradient: LinearGradient(
+                                  begin: Alignment.topCenter,
+                                  end: Alignment.bottomCenter,
+                                  colors: [
+                                    Colors.transparent,
+                                    Colors.black.withValues(
+                                      alpha: 0.85,
+                                    ),
+                                  ],
+                                  stops: const [0.3, 1.0],
+                                ),
+                              ),
+                            ),
+                          ),
+
+                          Positioned(
+                            bottom: 12,
+                            left: 14,
+                            right: 14,
+                            child: Text(
+                              featuredArticle.title,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: 15.5,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                                height: 1.3,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+
+                      Padding(
+                        padding: const EdgeInsets.all(14),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              featuredArticle.summary,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: 13,
+                                color: Color(0xFF515F74),
+                                height: 1.4,
+                              ),
+                            ),
+
+                            const SizedBox(height: 12),
+
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(
+                                  '${featuredArticle.source} • ${featuredArticle.timeAgo}',
+                                  style: const TextStyle(
+                                    fontSize: 11.5,
+                                    color: Color(0xFF515F74),
+                                  ),
+                                ),
+                                Row(
+                                  children: [
+                                    const Icon(
+                                      Icons.schedule_rounded,
+                                      size: 14,
+                                      color: Color(0xFF515F74),
+                                    ),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      featuredArticle.readTime,
+                                      style: const TextStyle(
+                                        fontSize: 11.5,
+                                        color: Color(0xFF515F74),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 20),
+            ],
+
+            // LATEST NEWS LIST
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: const [
                 Text(
-                  'SOROTAN UTAMA',
+                  'KABAR PASAR TERKINI',
                   style: TextStyle(
                     fontSize: 11.5,
                     fontWeight: FontWeight.bold,
@@ -315,11 +569,11 @@ class _NewsScreenState extends State<NewsScreen> {
                   ),
                 ),
                 Text(
-                  'Pilihan Editor',
+                  'Terbaru',
                   style: TextStyle(
-                    fontSize: 11.5,
-                    fontWeight: FontWeight.w600,
-                    color: Color(0xFF0F172A),
+                    fontSize: 11,
+                    fontWeight: FontWeight.w500,
+                    color: Color(0xFF94A3B8),
                   ),
                 ),
               ],
@@ -327,343 +581,186 @@ class _NewsScreenState extends State<NewsScreen> {
 
             const SizedBox(height: 8),
 
-            InkWell(
-              onTap: () => widget.onOpenNewsDetail(featuredArticle!),
-              borderRadius: BorderRadius.circular(16),
-              child: Container(
-                decoration: BoxDecoration(
-                  color: Colors.white,
+            ListView.separated(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: regularArticles.take(_loadedCount).length,
+              separatorBuilder: (context, index) =>
+                  const SizedBox(height: 10),
+              itemBuilder: (context, index) {
+                final article = regularArticles[index];
+
+                return InkWell(
+                  onTap: () => widget.onOpenNewsDetail(article),
                   borderRadius: BorderRadius.circular(16),
-                  border: Border.all(
-                    color: const Color(0xFFE2E8F0),
-                  ),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Stack(
+                  child: Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: const Color(0xFFE2E8F0),
+                      ),
+                    ),
+                    child: Row(
                       children: [
                         ClipRRect(
-                          borderRadius: const BorderRadius.vertical(
-                            top: Radius.circular(16),
-                          ),
+                          borderRadius: BorderRadius.circular(12),
                           child: SizedBox(
-                            height: 180,
-                            width: double.infinity,
+                            width: 80,
+                            height: 80,
                             child: Image.network(
-                              featuredArticle.imageUrl,
+                              article.imageUrl,
                               fit: BoxFit.cover,
                               errorBuilder: (context, error, stackTrace) =>
                                   Container(
-                                color: const Color(0xFFE2E8F0),
+                                color: const Color(0xFFF8FAFC),
                               ),
                             ),
                           ),
                         ),
 
-                        Positioned.fill(
-                          child: Container(
-                            decoration: BoxDecoration(
-                              borderRadius: const BorderRadius.vertical(
-                                top: Radius.circular(16),
-                              ),
-                              gradient: LinearGradient(
-                                begin: Alignment.topCenter,
-                                end: Alignment.bottomCenter,
-                                colors: [
-                                  Colors.transparent,
-                                  Colors.black.withValues(
-                                    alpha: 0.85,
-                                  ),
-                                ],
-                                stops: const [0.3, 1.0],
-                              ),
-                            ),
-                          ),
-                        ),
+                        const SizedBox(width: 12),
 
-                        Positioned(
-                          bottom: 12,
-                          left: 14,
-                          right: 14,
-                          child: Text(
-                            featuredArticle.title,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              fontSize: 15.5,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white,
-                              height: 1.3,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-
-                    Padding(
-                      padding: const EdgeInsets.all(14),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            featuredArticle.summary,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              fontSize: 13,
-                              color: Color(0xFF515F74),
-                              height: 1.4,
-                            ),
-                          ),
-
-                          const SizedBox(height: 12),
-
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(
-                                '${featuredArticle.source} • ${featuredArticle.timeAgo}',
-                                style: const TextStyle(
-                                  fontSize: 11.5,
-                                  color: Color(0xFF515F74),
-                                ),
-                              ),
                               Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
                                 children: [
-                                  const Icon(
-                                    Icons.schedule_rounded,
-                                    size: 14,
-                                    color: Color(0xFF515F74),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 8,
+                                      vertical: 2,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: primaryColor.withValues(
+                                        alpha: 0.08,
+                                      ),
+                                      borderRadius: BorderRadius.circular(12),
+                                      border: Border.all(
+                                        color: primaryColor.withValues(
+                                          alpha: 0.2,
+                                        ),
+                                      ),
+                                    ),
+                                    child: Text(
+                                      article.category,
+                                      style: TextStyle(
+                                        fontSize: 10.5,
+                                        fontWeight: FontWeight.w600,
+                                        color: primaryColor,
+                                      ),
+                                    ),
                                   ),
-                                  const SizedBox(width: 4),
+
                                   Text(
-                                    featuredArticle.readTime,
+                                    article.timeAgo,
                                     style: const TextStyle(
-                                      fontSize: 11.5,
+                                      fontSize: 10.5,
                                       color: Color(0xFF515F74),
                                     ),
                                   ),
                                 ],
                               ),
+
+                              const SizedBox(height: 6),
+
+                              Text(
+                                article.title,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontSize: 13.5,
+                                  fontWeight: FontWeight.w600,
+                                  color: Color(0xFF0F172A),
+                                  height: 1.25,
+                                ),
+                              ),
+
+                              const SizedBox(height: 6),
+
+                              Text(
+                                article.source,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  color: Color(0xFF515F74),
+                                ),
+                              ),
                             ],
                           ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-
-            const SizedBox(height: 20),
-          ],
-
-          // LATEST NEWS LIST
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: const [
-              Text(
-                'KABAR PASAR TERKINI',
-                style: TextStyle(
-                  fontSize: 11.5,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF515F74),
-                  letterSpacing: 0.5,
-                ),
-              ),
-              Text(
-                'Terbaru',
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w500,
-                  color: Color(0xFF94A3B8),
-                ),
-              ),
-            ],
-          ),
-
-          const SizedBox(height: 8),
-
-          ListView.separated(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            itemCount: regularArticles.take(_loadedCount).length,
-            separatorBuilder: (context, index) =>
-                const SizedBox(height: 10),
-            itemBuilder: (context, index) {
-              final article = regularArticles[index];
-
-              return InkWell(
-                onTap: () => widget.onOpenNewsDetail(article),
-                borderRadius: BorderRadius.circular(16),
-                child: Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(
-                      color: const Color(0xFFE2E8F0),
+                        ),
+                      ],
                     ),
                   ),
-                  child: Row(
-                    children: [
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(12),
-                        child: SizedBox(
-                          width: 80,
-                          height: 80,
-                          child: Image.network(
-                            article.imageUrl,
-                            fit: BoxFit.cover,
-                            errorBuilder: (context, error, stackTrace) =>
-                                Container(
-                              color: const Color(0xFFF8FAFC),
-                            ),
-                          ),
-                        ),
-                      ),
+                );
+              },
+            ),
 
-                      const SizedBox(width: 12),
+            // Load More Button
+            if (_loadedCount < regularArticles.length) ...[
+              const SizedBox(height: 16),
 
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              mainAxisAlignment:
-                                  MainAxisAlignment.spaceBetween,
-                              children: [
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 8,
-                                    vertical: 2,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: primaryColor.withValues(
-                                      alpha: 0.08,
-                                    ),
-                                    borderRadius: BorderRadius.circular(12),
-                                    border: Border.all(
-                                      color: primaryColor.withValues(
-                                        alpha: 0.2,
-                                      ),
-                                    ),
-                                  ),
-                                  child: Text(
-                                    article.category,
-                                    style: TextStyle(
-                                      fontSize: 10.5,
-                                      fontWeight: FontWeight.w600,
-                                      color: primaryColor,
-                                    ),
-                                  ),
-                                ),
-
-                                Text(
-                                  article.timeAgo,
-                                  style: const TextStyle(
-                                    fontSize: 10.5,
-                                    color: Color(0xFF515F74),
-                                  ),
-                                ),
-                              ],
-                            ),
-
-                            const SizedBox(height: 6),
-
-                            Text(
-                              article.title,
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                fontSize: 13.5,
-                                fontWeight: FontWeight.w600,
-                                color: Color(0xFF0F172A),
-                                height: 1.25,
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: _isLoadingMore ? null : _handleLoadMore,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: primaryColor,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  child: _isLoadingMore
+                      ? Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: const [
+                            SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
                               ),
                             ),
-
-                            const SizedBox(height: 6),
-
+                            SizedBox(width: 8),
                             Text(
-                              article.source,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                fontSize: 11,
-                                color: Color(0xFF515F74),
+                              'Memuat berita...',
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ],
+                        )
+                      : Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: const [
+                            Icon(
+                              Icons.expand_more_rounded,
+                              size: 18,
+                              color: Colors.white,
+                            ),
+                            SizedBox(width: 4),
+                            Text(
+                              'Muat Lebih Banyak Berita',
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.white,
                               ),
                             ),
                           ],
                         ),
-                      ),
-                    ],
-                  ),
                 ),
-              );
-            },
-          ),
-
-          // Load More Button
-          if (_loadedCount < regularArticles.length) ...[
-            const SizedBox(height: 16),
-
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: _isLoadingMore ? null : _handleLoadMore,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: primaryColor,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-                child: _isLoadingMore
-                    ? Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: const [
-                          SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: Colors.white,
-                            ),
-                          ),
-                          SizedBox(width: 8),
-                          Text(
-                            'Memuat berita...',
-                            style: TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600,
-                              color: Colors.white,
-                            ),
-                          ),
-                        ],
-                      )
-                    : Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: const [
-                          Icon(
-                            Icons.expand_more_rounded,
-                            size: 18,
-                            color: Colors.white,
-                          ),
-                          SizedBox(width: 4),
-                          Text(
-                            'Muat Lebih Banyak Berita',
-                            style: TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600,
-                              color: Colors.white,
-                            ),
-                          ),
-                        ],
-                      ),
               ),
-            ),
+            ],
           ],
         ],
       ),
