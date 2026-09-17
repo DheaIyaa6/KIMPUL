@@ -13,7 +13,7 @@ class UserProfile {
   UserProfile({
     required this.name,
     required this.email,
-    required this.phone,
+    this.phone = '',
     this.avatarUrl = 'https://i.pravatar.cc/300',
     this.clientCode = 'KMP-8892',
     this.accountNumber = '9928102831',

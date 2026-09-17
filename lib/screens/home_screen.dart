@@ -17,7 +17,14 @@ import 'package:kimpul/screens/profile_screen.dart';
 import 'package:kimpul/screens/tradingview_screen.dart';
 
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key});
+  final String userName;
+  final String userEmail;
+
+  const HomeScreen({
+    super.key,
+    this.userName = 'Pengguna',
+    this.userEmail = '',
+  });
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -51,16 +58,8 @@ class _HomeScreenState extends State<HomeScreen> {
   List<NewsItem> _liveNewsItems = [];
   bool _isLoadingLiveNews = true;
 
-  // User Profile
-  final UserProfile _userProfile = UserProfile(
-    name: 'Dhea Ananda',
-    email: 'dhea@kimpul.com',
-    phone: '+62 812-3456-7890',
-    avatarUrl: 'https://i.pravatar.cc/300',
-    clientCode: 'KMP-8892',
-    accountNumber: '9928102831',
-    branch: 'Surabaya, Indonesia',
-  );
+  // User Profile (sekarang diambil dari data login, bukan hardcode)
+  late final UserProfile _userProfile;
 
   // FUNGSI FETCH LIVE RSS NEWS UNTUK CAROUSEL SLIDER & NEWS SCREEN
   Future<void> _fetchLiveCnbcNews() async {
@@ -197,6 +196,13 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
+
+    // Ambil nama & email dari data login
+    _userProfile = UserProfile(
+      name: widget.userName,
+      email: widget.userEmail,
+    );
+
     _initMiniChartWidget();
 
     // Inisialisasi Waktu Real-time
