@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:kimpul/screens/modals_screen.dart';
+import 'package:kimpul/screens/edit_profile_screen.dart';
+import 'package:kimpul/screens/change_password_screen.dart';
 
 // Model User Profile untuk Flutter
 class UserProfile {
@@ -45,7 +48,6 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
-  bool _showSessionInfo = false;
   bool _showPrivacyInfo = false;
 
   // User yang sedang ditampilkan
@@ -57,108 +59,33 @@ class _ProfileScreenState extends State<ProfileScreen> {
     _currentUser = widget.user;
   }
 
-  // Dialog internal untuk edit profil cepat
-  void _openEditProfileModal() {
-    final nameController = TextEditingController(text: _currentUser.name);
-    final emailController = TextEditingController(text: _currentUser.email);
-    final phoneController = TextEditingController(text: _currentUser.phone);
-
-    showDialog(
-      context: context,
-      builder: (context) => Dialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text(
-                    'Edit Profil',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFF0F172A),
-                    ),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.close, size: 20),
-                    onPressed: () => Navigator.pop(context),
-                  ),
-                ],
-              ),
-              const Divider(height: 20, color: Color(0xFFE2E8F0)),
-              _buildModalTextField('NAMA LENGKAP', nameController),
-              const SizedBox(height: 12),
-              _buildModalTextField('EMAIL', emailController),
-              const SizedBox(height: 12),
-              _buildModalTextField('NOMOR TELEPON', phoneController),
-              const SizedBox(height: 20),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: () {
-                    setState(() {
-                      _currentUser = UserProfile(
-                        name: nameController.text,
-                        email: emailController.text,
-                        phone: phoneController.text,
-                        avatarUrl: _currentUser.avatarUrl,
-                        clientCode: _currentUser.clientCode,
-                        accountNumber: _currentUser.accountNumber,
-                        branch: _currentUser.branch,
-                      );
-                    });
-                    Navigator.pop(context);
-                    widget.onShowToast('Profil berhasil diperbarui');
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF0F172A),
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                  child: const Text('Simpan Perubahan'),
-                ),
-              ),
-            ],
-          ),
-        ),
+  // Navigasi ke Halaman Edit Profil
+  void _navigateToEditProfile() async {
+    final updatedUser = await Navigator.push<UserProfile>(
+      context,
+      MaterialPageRoute(
+        builder: (context) => EditProfileScreen(user: _currentUser),
       ),
     );
+
+    if (updatedUser != null) {
+      setState(() {
+        _currentUser = updatedUser;
+      });
+      if (widget.onSaveProfile != null) {
+        widget.onSaveProfile!(updatedUser);
+      }
+      widget.onShowToast('Profil berhasil diperbarui');
+    }
   }
 
-  Widget _buildModalTextField(String label, TextEditingController controller) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: const TextStyle(
-            fontSize: 11,
-            fontWeight: FontWeight.bold,
-            color: Color(0xFF64748B),
-          ),
-        ),
-        const SizedBox(height: 6),
-        TextField(
-          controller: controller,
-          style: const TextStyle(fontSize: 13, color: Color(0xFF0F172A)),
-          decoration: InputDecoration(
-            contentPadding:
-                const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(10),
-              borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
-            ),
-          ),
-        ),
-      ],
+  // Navigasi ke Halaman Ubah Kata Sandi (Disesuaikan tanpa parameter yang tidak terdefinisi)
+  void _navigateToChangePassword() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const ChangePasswordScreen(),
+      ),
     );
   }
 
@@ -197,7 +124,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       radius: 40,
                       backgroundColor: const Color(0xFFF1F5F9),
                       backgroundImage: NetworkImage(_currentUser.avatarUrl),
-                      onBackgroundImageError: (_, __) {},
+                      onBackgroundImageError: (exception, stackTrace) {},
                       child: const Icon(
                         Icons.person_rounded,
                         size: 48,
@@ -208,7 +135,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       bottom: 0,
                       right: 0,
                       child: InkWell(
-                        onTap: _openEditProfileModal,
+                        onTap: _navigateToEditProfile,
                         borderRadius: BorderRadius.circular(14),
                         child: Container(
                           width: 28,
@@ -241,7 +168,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ),
                     const SizedBox(width: 4),
                     InkWell(
-                      onTap: _openEditProfileModal,
+                      onTap: _navigateToEditProfile,
                       child: const Icon(
                         Icons.edit_outlined,
                         size: 16,
@@ -264,17 +191,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
           const SizedBox(height: 16),
 
-          // GROUP 1: AKUN & PENGATURAN
-          const Text(
-            'AKUN & PENGATURAN',
-            style: TextStyle(
-              fontSize: 11.5,
-              fontWeight: FontWeight.bold,
-              color: Color(0xFF64748B),
-              letterSpacing: 0.5,
-            ),
-          ),
-          const SizedBox(height: 6),
+          // UNIFIED MENU CONTAINER
           Container(
             decoration: BoxDecoration(
               color: Colors.white,
@@ -283,100 +200,44 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
             child: Column(
               children: [
+                // 1. Edit Profil
                 _buildMenuItem(
                   icon: Icons.person_outlined,
                   title: 'Edit Profil',
                   subtitle: 'Ubah nama, nomor telepon, atau kontak',
-                  onTap: _openEditProfileModal,
+                  onTap: _navigateToEditProfile,
                 ),
                 const Divider(height: 1, color: Color(0xFFF1F5F9)),
+
+                // 2. Ubah Kata Sandi
                 _buildMenuItem(
                   icon: Icons.lock_reset_rounded,
                   title: 'Ubah Kata Sandi',
                   subtitle: 'Perbarui keamanan kata sandi akun',
-                  onTap: () => widget.onShowToast('Fitur Ubah Sandi Aktif'),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 16),
-
-          // GROUP 2: KEAMANAN & SESI
-          const Text(
-            'KEAMANAN & SESI',
-            style: TextStyle(
-              fontSize: 11.5,
-              fontWeight: FontWeight.bold,
-              color: Color(0xFF64748B),
-              letterSpacing: 0.5,
-            ),
-          ),
-          const SizedBox(height: 6),
-          Container(
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: const Color(0xFFE2E8F0)),
-            ),
-            child: Column(
-              children: [
-                Padding(
-                  padding: const EdgeInsets.all(14),
-                  child: Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFECFDF5),
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: const Color(0xFFA7F3D0)),
-                        ),
-                        child: const Icon(
-                          Icons.shield_outlined,
-                          size: 20,
-                          color: Color(0xFF059669),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: const [
-                            Text(
-                              'Keamanan Akun',
-                              style: TextStyle(
-                                fontSize: 13.5,
-                                fontWeight: FontWeight.w600,
-                                color: Color(0xFF0F172A),
-                              ),
-                            ),
-                            Text(
-                              'Terkonfigurasi • Enkripsi AES-256',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: Color(0xFF047857),
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const Icon(
-                        Icons.check_circle_rounded,
-                        size: 20,
-                        color: Color(0xFF059669),
-                      ),
-                    ],
-                  ),
+                  onTap: _navigateToChangePassword,
                 ),
                 const Divider(height: 1, color: Color(0xFFF1F5F9)),
+
+                // 3. Layanan Pelanggan (CS)
+                _buildMenuItem(
+                  icon: Icons.support_agent_rounded,
+                  title: 'Layanan Pelanggan (CS)',
+                  subtitle: 'Hubungi tim bantuan via WhatsApp',
+                  onTap: () {
+                    ConsultationModal.show(context);
+                  },
+                ),
+                const Divider(height: 1, color: Color(0xFFF1F5F9)),
+
+                // 4. Privasi Data Perhitungan
                 InkWell(
                   onTap: () {
                     setState(() {
-                      _showSessionInfo = !_showSessionInfo;
+                      _showPrivacyInfo = !_showPrivacyInfo;
                     });
                   },
-                  borderRadius: const BorderRadius.vertical(bottom: Radius.circular(16)),
+                  borderRadius:
+                      const BorderRadius.vertical(bottom: Radius.circular(16)),
                   child: Padding(
                     padding: const EdgeInsets.all(14),
                     child: Row(
@@ -389,7 +250,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             border: Border.all(color: const Color(0xFFE2E8F0)),
                           ),
                           child: const Icon(
-                            Icons.devices_rounded,
+                            Icons.privacy_tip_outlined,
                             size: 20,
                             color: Color(0xFF0F172A),
                           ),
@@ -400,7 +261,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: const [
                               Text(
-                                'Aktivitas Sesi',
+                                'Privasi Data Perhitungan',
                                 style: TextStyle(
                                   fontSize: 13.5,
                                   fontWeight: FontWeight.w600,
@@ -408,7 +269,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 ),
                               ),
                               Text(
-                                '1 Sesi Aktif • Mobile Application',
+                                'Data perhitungan Anda disimpan privat',
                                 style: TextStyle(
                                   fontSize: 12,
                                   color: Color(0xFF64748B),
@@ -418,7 +279,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           ),
                         ),
                         Icon(
-                          _showSessionInfo
+                          _showPrivacyInfo
                               ? Icons.expand_less_rounded
                               : Icons.chevron_right_rounded,
                           size: 20,
@@ -431,131 +292,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ],
             ),
           ),
-          if (_showSessionInfo) ...[
-            const SizedBox(height: 6),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: const Color(0xFFF8FAFC),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: const Color(0xFFE2E8F0)),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: const [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        'Sesi Saat Ini',
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: Color(0xFF0F172A),
-                        ),
-                      ),
-                      Text(
-                        'Aktif Sekarang',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Color(0xFF047857),
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ],
-                  ),
-                  SizedBox(height: 4),
-                  Text(
-                    'Perangkat: Mobile App • Flutter Android/iOS',
-                    style: TextStyle(fontSize: 12, color: Color(0xFF64748B)),
-                  ),
-                  Text(
-                    'Penyimpanan: Secure Storage Terenkripsi',
-                    style: TextStyle(fontSize: 12, color: Color(0xFF64748B)),
-                  ),
-                ],
-              ),
-            ),
-          ],
-          const SizedBox(height: 16),
 
-          // GROUP 3: KEBIJAKAN & PRIVASI
-          const Text(
-            'KEBIJAKAN & PRIVASI',
-            style: TextStyle(
-              fontSize: 11.5,
-              fontWeight: FontWeight.bold,
-              color: Color(0xFF64748B),
-              letterSpacing: 0.5,
-            ),
-          ),
-          const SizedBox(height: 6),
-          Container(
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: const Color(0xFFE2E8F0)),
-            ),
-            child: InkWell(
-              onTap: () {
-                setState(() {
-                  _showPrivacyInfo = !_showPrivacyInfo;
-                });
-              },
-              borderRadius: BorderRadius.circular(16),
-              child: Padding(
-                padding: const EdgeInsets.all(14),
-                child: Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFF8FAFC),
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: const Color(0xFFE2E8F0)),
-                      ),
-                      child: const Icon(
-                        Icons.privacy_tip_outlined,
-                        size: 20,
-                        color: Color(0xFF0F172A),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: const [
-                          Text(
-                            'Privasi Data Perhitungan',
-                            style: TextStyle(
-                              fontSize: 13.5,
-                              fontWeight: FontWeight.w600,
-                              color: Color(0xFF0F172A),
-                            ),
-                          ),
-                          Text(
-                            'Data perhitungan Anda disimpan privat',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: Color(0xFF64748B),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    Icon(
-                      _showPrivacyInfo
-                          ? Icons.expand_less_rounded
-                          : Icons.chevron_right_rounded,
-                      size: 20,
-                      color: const Color(0xFF94A3B8),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
+          // Dropdown Info Privasi Data Perhitungan saat Panah Ditekan
           if (_showPrivacyInfo) ...[
             const SizedBox(height: 6),
             Container(
@@ -566,15 +304,32 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(color: const Color(0xFFE2E8F0)),
               ),
-              child: const Text(
-                'Aplikasi melindungi seluruh data kalkulasi pengguna. Seluruh riwayat dan parameter perhitungan disimpan secara privat pada perangkat Anda.',
-                style: TextStyle(fontSize: 12, color: Color(0xFF64748B), height: 1.4),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: const [
+                  Icon(
+                    Icons.verified_user_rounded,
+                    size: 18,
+                    color: Color(0xFF059669),
+                  ),
+                  SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Seluruh data kalkulasi, riwayat transaksi, dan parameter perhitungan Anda tersimpan secara privat & aman hanya pada penyimpanan lokal perangkat Anda.',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Color(0xFF64748B),
+                        height: 1.4,
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
           ],
           const SizedBox(height: 20),
 
-          // GROUP 4: ACTION BUTTONS
+          // BUTTON KELUAR AKUN
           if (widget.onReplaySplash != null) ...[
             SizedBox(
               width: double.infinity,
