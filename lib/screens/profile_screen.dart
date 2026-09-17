@@ -1,6 +1,4 @@
 import 'package:flutter/material.dart';
-import 'edit_profile_screen.dart';
-import 'change_password_screen.dart';
 
 // Model User Profile untuk Flutter
 class UserProfile {
@@ -16,10 +14,10 @@ class UserProfile {
     required this.name,
     required this.email,
     required this.phone,
-    required this.avatarUrl,
-    required this.clientCode,
-    required this.accountNumber,
-    required this.branch,
+    this.avatarUrl = 'https://i.pravatar.cc/300',
+    this.clientCode = 'KMP-8892',
+    this.accountNumber = '9928102831',
+    this.branch = 'Surabaya, Indonesia',
   });
 }
 
@@ -50,7 +48,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   bool _showSessionInfo = false;
   bool _showPrivacyInfo = false;
 
-  // User yang sedang ditampilkan, bisa berubah setelah edit profil
+  // User yang sedang ditampilkan
   late UserProfile _currentUser;
 
   @override
@@ -59,38 +57,109 @@ class _ProfileScreenState extends State<ProfileScreen> {
     _currentUser = widget.user;
   }
 
-  // Navigasi ke halaman Edit Profil (file terpisah: edit_profile_screen.dart)
-  Future<void> _openEditProfile() async {
-    final updated = await Navigator.push<UserProfile>(
-      context,
-      MaterialPageRoute(
-        builder: (_) => EditProfileScreen(
-          user: _currentUser,
-          onSave: widget.onSaveProfile,
+  // Dialog internal untuk edit profil cepat
+  void _openEditProfileModal() {
+    final nameController = TextEditingController(text: _currentUser.name);
+    final emailController = TextEditingController(text: _currentUser.email);
+    final phoneController = TextEditingController(text: _currentUser.phone);
+
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    'Edit Profil',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF0F172A),
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close, size: 20),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                ],
+              ),
+              const Divider(height: 20, color: Color(0xFFE2E8F0)),
+              _buildModalTextField('NAMA LENGKAP', nameController),
+              const SizedBox(height: 12),
+              _buildModalTextField('EMAIL', emailController),
+              const SizedBox(height: 12),
+              _buildModalTextField('NOMOR TELEPON', phoneController),
+              const SizedBox(height: 20),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () {
+                    setState(() {
+                      _currentUser = UserProfile(
+                        name: nameController.text,
+                        email: emailController.text,
+                        phone: phoneController.text,
+                        avatarUrl: _currentUser.avatarUrl,
+                        clientCode: _currentUser.clientCode,
+                        accountNumber: _currentUser.accountNumber,
+                        branch: _currentUser.branch,
+                      );
+                    });
+                    Navigator.pop(context);
+                    widget.onShowToast('Profil berhasil diperbarui');
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF0F172A),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  child: const Text('Simpan Perubahan'),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
-
-    if (updated != null) {
-      setState(() => _currentUser = updated);
-      widget.onShowToast('Profil berhasil diperbarui');
-    }
   }
 
-  // Navigasi ke halaman Ubah Kata Sandi (file terpisah: change_password_screen.dart)
-  Future<void> _openChangePassword() async {
-    final success = await Navigator.push<bool>(
-      context,
-      MaterialPageRoute(
-        builder: (_) => ChangePasswordScreen(
-          onSubmit: widget.onChangePassword,
+  Widget _buildModalTextField(String label, TextEditingController controller) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.bold,
+            color: Color(0xFF64748B),
+          ),
         ),
-      ),
+        const SizedBox(height: 6),
+        TextField(
+          controller: controller,
+          style: const TextStyle(fontSize: 13, color: Color(0xFF0F172A)),
+          decoration: InputDecoration(
+            contentPadding:
+                const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+            ),
+          ),
+        ),
+      ],
     );
-
-    if (success == true) {
-      widget.onShowToast('Kata sandi berhasil diubah');
-    }
   }
 
   @override
@@ -100,7 +169,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Header (cuma judul, tanpa icon & subjudul)
           const Text(
             'Profil Pengguna',
             style: TextStyle(
@@ -110,7 +178,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               letterSpacing: -0.5,
             ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 12),
 
           // USER PROFILE CARD
           Container(
@@ -123,13 +191,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
             child: Column(
               children: [
-                // Avatar Profil Default Kosongan
                 Stack(
                   children: [
-                    const CircleAvatar(
+                    CircleAvatar(
                       radius: 40,
-                      backgroundColor: Color(0xFFF1F5F9),
-                      child: Icon(
+                      backgroundColor: const Color(0xFFF1F5F9),
+                      backgroundImage: NetworkImage(_currentUser.avatarUrl),
+                      onBackgroundImageError: (_, __) {},
+                      child: const Icon(
                         Icons.person_rounded,
                         size: 48,
                         color: Color(0xFF64748B),
@@ -139,7 +208,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       bottom: 0,
                       right: 0,
                       child: InkWell(
-                        onTap: _openEditProfile,
+                        onTap: _openEditProfileModal,
                         borderRadius: BorderRadius.circular(14),
                         child: Container(
                           width: 28,
@@ -159,8 +228,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ],
                 ),
                 const SizedBox(height: 12),
-
-                // Name & Verified Badge
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
@@ -174,7 +241,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ),
                     const SizedBox(width: 4),
                     InkWell(
-                      onTap: _openEditProfile,
+                      onTap: _openEditProfileModal,
                       child: const Icon(
                         Icons.edit_outlined,
                         size: 16,
@@ -220,14 +287,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   icon: Icons.person_outlined,
                   title: 'Edit Profil',
                   subtitle: 'Ubah nama, nomor telepon, atau kontak',
-                  onTap: _openEditProfile,
+                  onTap: _openEditProfileModal,
                 ),
                 const Divider(height: 1, color: Color(0xFFF1F5F9)),
                 _buildMenuItem(
                   icon: Icons.lock_reset_rounded,
                   title: 'Ubah Kata Sandi',
                   subtitle: 'Perbarui keamanan kata sandi akun',
-                  onTap: _openChangePassword,
+                  onTap: () => widget.onShowToast('Fitur Ubah Sandi Aktif'),
                 ),
               ],
             ),
@@ -507,7 +574,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ],
           const SizedBox(height: 20),
 
-          // GROUP 4: ACTION BUTTONS (REPLAY SPLASH & LOGOUT)
+          // GROUP 4: ACTION BUTTONS
           if (widget.onReplaySplash != null) ...[
             SizedBox(
               width: double.infinity,

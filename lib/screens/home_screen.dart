@@ -1,16 +1,20 @@
-import 'dart:async'; 
+import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart'; 
+import 'package:http/http.dart' as http;
+import 'package:intl/intl.dart';
+import 'package:webfeed_plus/webfeed_plus.dart';
 import 'package:webview_flutter/webview_flutter.dart';
-import 'package:kimpul/screens/header_screen.dart';
-import 'package:kimpul/screens/tradingview_screen.dart';
-import 'package:kimpul/screens/pivot_calculator.dart';
-import 'package:kimpul/screens/gold_calculator.dart';
+
 import 'package:kimpul/screens/calculatorhub_screen.dart';
-import 'package:kimpul/screens/news_screen.dart';
+import 'package:kimpul/screens/gold_calculator.dart';
+import 'package:kimpul/screens/header_screen.dart';
 import 'package:kimpul/screens/history_screen.dart';
-import 'package:kimpul/screens/profile_screen.dart';
 import 'package:kimpul/screens/login_screen.dart';
+import 'package:kimpul/screens/modals_screen.dart';
+import 'package:kimpul/screens/news_screen.dart';
+import 'package:kimpul/screens/pivot_calculator.dart';
+import 'package:kimpul/screens/profile_screen.dart';
+import 'package:kimpul/screens/tradingview_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -32,9 +36,9 @@ class _HomeScreenState extends State<HomeScreen> {
   late Timer _timer;
   late DateTime _currentTime;
 
-  // Controller & Timer Slider Berita Auto-Slide 10 Detik
+  // Controller & Timer Slider Berita Auto-Slide
   late PageController _newsPageController;
-  late Timer _newsTimer;
+  Timer? _newsTimer;
   int _currentNewsPage = 0;
 
   // State navigasi internal di tab Kalkulator
@@ -43,48 +47,11 @@ class _HomeScreenState extends State<HomeScreen> {
   // List Riwayat Perhitungan Local State
   final List<dynamic> _historyItems = [];
 
-  // Dummy News Data (3 Item Berita untuk Carousel Slider)
-  final List<NewsItem> _newsItems = [
-    NewsItem(
-      id: '1',
-      title: 'Emas Mendekati Level Tertinggi Sepanjang Masa di Tengah Moneter AS...',
-      summary: 'Harga emas dunia (XAU/USD) terus menguat di tengah ekspektasi pasar terhadap kebijakan mo...',
-      source: 'TradingView Newsroom',
-      timeAgo: '12m lalu',
-      readTime: '3 mnt baca',
-      category: 'XAU/USD',
-      tagType: 'BULLISH',
-      imageUrl: 'https://images.unsplash.com/photo-1610375461246-83df859d849d?auto=format&fit=crop&w=600&q=80',
-      fullContent: 'Isi lengkap berita 1...',
-      featured: true,
-    ),
-    NewsItem(
-      id: '2',
-      title: 'Analisis Teknikal XAU/USD: Pola Breakout Menguji Resistance...',
-      summary: 'Level Pivot harian menunjukkan indikasi konsolidasi sebelum melanjutkan tren naik pasar...',
-      source: 'TradingView / Analyst',
-      timeAgo: '28m lalu',
-      readTime: '2 mnt baca',
-      category: 'Analisis',
-      tagType: 'ANALISIS',
-      imageUrl: 'https://images.unsplash.com/photo-1590283603385-17ffb3a7f29f?auto=format&fit=crop&w=600&q=80',
-      fullContent: 'Isi lengkap berita 2...',
-    ),
-    NewsItem(
-      id: '3',
-      title: 'Prospek Pasar Emas Fisik & Suku Bunga Acuan Bank Indonesia...',
-      summary: 'Permintaan emas batangan lokal meningkat seiring pergerakan nilai tukar Rupiah...',
-      source: 'Market Watch',
-      timeAgo: '1j lalu',
-      readTime: '4 mnt baca',
-      category: 'Emas Fisik',
-      tagType: 'BULLISH',
-      imageUrl: 'https://images.unsplash.com/photo-1589758438368-0ad531db3366?auto=format&fit=crop&w=600&q=80',
-      fullContent: 'Isi lengkap berita 3...',
-    ),
-  ];
+  // State Berita Live (Didapat dari RSS Feed CNBC)
+  List<NewsItem> _liveNewsItems = [];
+  bool _isLoadingLiveNews = true;
 
-  // Dummy User Profile
+  // User Profile
   final UserProfile _userProfile = UserProfile(
     name: 'Dhea Ananda',
     email: 'dhea@kimpul.com',
@@ -95,7 +62,114 @@ class _HomeScreenState extends State<HomeScreen> {
     branch: 'Surabaya, Indonesia',
   );
 
-  // Fungsi Pengecekan Status Aktif/Tutup Pasar Emas Dunia (XAUUSD)
+  // FUNGSI FETCH LIVE RSS NEWS UNTUK CAROUSEL SLIDER & NEWS SCREEN
+  Future<void> _fetchLiveCnbcNews() async {
+    try {
+      final response = await http.get(
+        Uri.parse('https://search.cnbc.com/rs/search/combined:true/show:10000664/stripDir:true/false/false/format:rss'),
+      );
+
+      if (response.statusCode == 200) {
+        final rssFeed = RssFeed.parse(response.body);
+
+        if (rssFeed.items != null && rssFeed.items!.isNotEmpty) {
+          final List<NewsItem> fetchedItems = [];
+
+          for (int i = 0; i < rssFeed.items!.length; i++) {
+            final item = rssFeed.items![i];
+
+            // Parsing Selisih Waktu
+            String timeFormatted = 'Terbaru';
+            if (item.pubDate != null) {
+              final diff = DateTime.now().difference(item.pubDate!);
+              if (diff.inMinutes < 60) {
+                timeFormatted = '${diff.inMinutes}m lalu';
+              } else if (diff.inHours < 24) {
+                timeFormatted = '${diff.inHours}j lalu';
+              } else {
+                timeFormatted = '${diff.inDays}hr lalu';
+              }
+            }
+
+            // Bersihkan Tag HTML
+            String cleanSummary = (item.description ?? '')
+                .replaceAll(RegExp(r'<[^>]*>'), '')
+                .trim();
+            if (cleanSummary.isEmpty) {
+              cleanSummary = 'Klik untuk membaca analisa pasar keuangan terkini dari CNBC...';
+            }
+
+            // Ekstraksi Gambar
+            String fallbackImage = 'https://images.unsplash.com/photo-1610375461246-83df859d849d?auto=format&fit=crop&w=600&q=80';
+            String extractedImageUrl = fallbackImage;
+
+            if (item.media?.contents != null && item.media!.contents!.isNotEmpty) {
+              extractedImageUrl = item.media!.contents!.first.url ?? fallbackImage;
+            } else if (item.enclosure?.url != null) {
+              extractedImageUrl = item.enclosure!.url!;
+            }
+
+            fetchedItems.add(
+              NewsItem(
+                id: item.guid ?? '$i-${DateTime.now().millisecondsSinceEpoch}',
+                title: item.title ?? 'Berita Pasar Finansial Global',
+                summary: cleanSummary,
+                source: 'CNBC International',
+                timeAgo: timeFormatted,
+                readTime: '3 mnt baca',
+                category: 'MARKETS',
+                tagType: 'MARKET',
+                imageUrl: extractedImageUrl,
+                fullContent: item.link ?? '',
+                featured: i == 0,
+              ),
+            );
+          }
+
+          if (mounted) {
+            setState(() {
+              _liveNewsItems = fetchedItems;
+              _isLoadingLiveNews = false;
+            });
+            _startNewsAutoSlide();
+          }
+          return;
+        }
+      }
+    } catch (_) {
+      // Catch jika koneksi error
+    }
+
+    if (mounted) {
+      setState(() {
+        _isLoadingLiveNews = false;
+      });
+    }
+  }
+
+  // Timer Otomatis Slide Berita
+  void _startNewsAutoSlide() {
+    _newsTimer?.cancel();
+    if (_liveNewsItems.isEmpty) return;
+
+    _newsTimer = Timer.periodic(const Duration(seconds: 8), (timer) {
+      if (mounted && _newsPageController.hasClients) {
+        if (_currentNewsPage < _liveNewsItems.take(5).length - 1) {
+          _currentNewsPage++;
+          _newsPageController.animateToPage(
+            _currentNewsPage,
+            duration: const Duration(milliseconds: 600),
+            curve: Curves.easeInOut,
+          );
+        } else {
+          _currentNewsPage = 0;
+          _newsPageController.jumpToPage(0);
+        }
+      }
+    });
+  }
+
+  // Pengecekan Status Aktif Pasar
   bool _isMarketActive() {
     final now = DateTime.now().toUtc();
     final weekday = now.weekday;
@@ -135,29 +209,16 @@ class _HomeScreenState extends State<HomeScreen> {
       }
     });
 
-    // Carousel Slider: Pindah halus, lalu melompat ke 0 saat sudah di halaman akhir
     _newsPageController = PageController(initialPage: 0);
-    _newsTimer = Timer.periodic(const Duration(seconds: 10), (timer) {
-      if (mounted && _newsPageController.hasClients) {
-        if (_currentNewsPage < _newsItems.length - 1) {
-          _currentNewsPage++;
-          _newsPageController.animateToPage(
-            _currentNewsPage,
-            duration: const Duration(milliseconds: 600),
-            curve: Curves.easeInOut,
-          );
-        } else {
-          _currentNewsPage = 0;
-          _newsPageController.jumpToPage(0);
-        }
-      }
-    });
+
+    // Fetch Berita Live saat Pertama Dimuat
+    _fetchLiveCnbcNews();
   }
 
   @override
   void dispose() {
     _timer.cancel();
-    _newsTimer.cancel();
+    _newsTimer?.cancel();
     _newsPageController.dispose();
     super.dispose();
   }
@@ -217,6 +278,8 @@ class _HomeScreenState extends State<HomeScreen> {
     String formattedDate = DateFormat('EEEE, d MMMM yyyy', 'id_ID').format(_currentTime);
     String formattedTime = DateFormat('HH:mm:ss', 'id_ID').format(_currentTime);
 
+    final carouselNews = _liveNewsItems.take(5).toList();
+
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16.0),
       child: Column(
@@ -236,7 +299,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    'Dhea Ananda',
+                    _userProfile.name,
                     style: const TextStyle(
                       fontSize: 22,
                       fontWeight: FontWeight.bold,
@@ -278,7 +341,7 @@ class _HomeScreenState extends State<HomeScreen> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               const Text(
-                'Berita',
+                'Berita Terkini Live',
                 style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
@@ -306,190 +369,212 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           const SizedBox(height: 12),
 
-          // KOTAK BERITA MELAYANG
-          SizedBox(
-            height: 260,
-            child: PageView.builder(
-              controller: _newsPageController,
-              onPageChanged: (index) {
-                setState(() {
-                  _currentNewsPage = index;
-                });
-              },
-              itemCount: _newsItems.length,
-              itemBuilder: (context, index) {
-                final news = _newsItems[index];
-                return InkWell(
-                  onTap: () {
-                    setState(() {
-                      _selectedIndex = 1;
-                    });
-                  },
-                  borderRadius: BorderRadius.circular(16),
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: const Color(0xFFE2E8F0)),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.05),
-                          blurRadius: 10,
-                          offset: const Offset(0, 4),
-                        ),
-                      ],
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Expanded(
-                          flex: 6,
-                          child: Stack(
-                            children: [
-                              ClipRRect(
-                                borderRadius: const BorderRadius.vertical(
-                                  top: Radius.circular(16),
-                                ),
-                                child: Image.network(
-                                  news.imageUrl,
-                                  width: double.infinity,
-                                  height: double.infinity,
-                                  fit: BoxFit.cover,
-                                  errorBuilder: (context, error, stackTrace) {
-                                    return Container(
-                                      color: const Color(0xFFF1F5F9),
-                                      child: const Center(
-                                        child: Icon(
-                                          Icons.newspaper,
-                                          size: 40,
-                                          color: Color(0xFF94A3B8),
-                                        ),
-                                      ),
-                                    );
-                                  },
-                                ),
-                              ),
-                              Positioned.fill(
-                                child: Container(
-                                  decoration: BoxDecoration(
-                                    borderRadius: const BorderRadius.vertical(
-                                      top: Radius.circular(16),
-                                    ),
-                                    gradient: LinearGradient(
-                                      begin: Alignment.topCenter,
-                                      end: Alignment.bottomCenter,
-                                      colors: [
-                                        Colors.transparent,
-                                        Colors.black.withValues(alpha: 0.85),
-                                      ],
-                                      stops: const [0.3, 1.0],
-                                    ),
-                                  ),
-                                ),
-                              ),
-                              Positioned(
-                                left: 14,
-                                right: 14,
-                                bottom: 12,
-                                child: Text(
-                                  news.title,
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.white,
-                                    height: 1.3,
-                                  ),
-                                ),
-                              ),
-                            ],
+          // KOTAK BERITA MELAYANG (LIVE CAROUSEL SLIDER)
+          if (_isLoadingLiveNews)
+            Container(
+              height: 260,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: const Color(0xFFE2E8F0)),
+              ),
+              child: const Center(
+                child: CircularProgressIndicator(),
+              ),
+            )
+          else if (carouselNews.isEmpty)
+            Container(
+              height: 200,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: const Color(0xFFE2E8F0)),
+              ),
+              child: const Center(
+                child: Text('Gagal memuat berita live'),
+              ),
+            )
+          else ...[
+            SizedBox(
+              height: 260,
+              child: PageView.builder(
+                controller: _newsPageController,
+                onPageChanged: (index) {
+                  setState(() {
+                    _currentNewsPage = index;
+                  });
+                },
+                itemCount: carouselNews.length,
+                itemBuilder: (context, index) {
+                  final news = carouselNews[index];
+                  return InkWell(
+                    onTap: () => NewsDetailModal.show(context, news),
+                    borderRadius: BorderRadius.circular(16),
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: const Color(0xFFE2E8F0)),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.05),
+                            blurRadius: 10,
+                            offset: const Offset(0, 4),
                           ),
-                        ),
-                        Expanded(
-                          flex: 4,
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 14,
-                              vertical: 10,
-                            ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        ],
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            flex: 6,
+                            child: Stack(
                               children: [
-                                Text(
-                                  news.summary,
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(
-                                    fontSize: 12,
-                                    color: Color(0xFF475569),
-                                    height: 1.35,
+                                ClipRRect(
+                                  borderRadius: const BorderRadius.vertical(
+                                    top: Radius.circular(16),
                                   ),
-                                ),
-                                Row(
-                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    Text(
-                                      '${news.source} • ${news.timeAgo}',
-                                      style: const TextStyle(
-                                        fontSize: 11,
-                                        color: Color(0xFF64748B),
-                                        fontWeight: FontWeight.w500,
-                                      ),
-                                    ),
-                                    Row(
-                                      children: [
-                                        const Icon(
-                                          Icons.access_time_rounded,
-                                          size: 14,
-                                          color: Color(0xFF64748B),
-                                        ),
-                                        const SizedBox(width: 4),
-                                        Text(
-                                          news.readTime,
-                                          style: const TextStyle(
-                                            fontSize: 11,
-                                            color: Color(0xFF64748B),
-                                            fontWeight: FontWeight.w500,
+                                  child: Image.network(
+                                    news.imageUrl,
+                                    width: double.infinity,
+                                    height: double.infinity,
+                                    fit: BoxFit.cover,
+                                    errorBuilder: (context, error, stackTrace) {
+                                      return Container(
+                                        color: const Color(0xFFF1F5F9),
+                                        child: const Center(
+                                          child: Icon(
+                                            Icons.newspaper,
+                                            size: 40,
+                                            color: Color(0xFF94A3B8),
                                           ),
                                         ),
-                                      ],
+                                      );
+                                    },
+                                  ),
+                                ),
+                                Positioned.fill(
+                                  child: Container(
+                                    decoration: BoxDecoration(
+                                      borderRadius: const BorderRadius.vertical(
+                                        top: Radius.circular(16),
+                                      ),
+                                      gradient: LinearGradient(
+                                        begin: Alignment.topCenter,
+                                        end: Alignment.bottomCenter,
+                                        colors: [
+                                          Colors.transparent,
+                                          Colors.black.withValues(alpha: 0.85),
+                                        ],
+                                        stops: const [0.3, 1.0],
+                                      ),
                                     ),
-                                  ],
+                                  ),
+                                ),
+                                Positioned(
+                                  left: 14,
+                                  right: 14,
+                                  bottom: 12,
+                                  child: Text(
+                                    news.title,
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.white,
+                                      height: 1.3,
+                                    ),
+                                  ),
                                 ),
                               ],
                             ),
                           ),
-                        ),
-                      ],
+                          Expanded(
+                            flex: 4,
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 14,
+                                vertical: 10,
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Text(
+                                    news.summary,
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      fontSize: 12,
+                                      color: Color(0xFF475569),
+                                      height: 1.35,
+                                    ),
+                                  ),
+                                  Row(
+                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      Text(
+                                        '${news.source} • ${news.timeAgo}',
+                                        style: const TextStyle(
+                                          fontSize: 11,
+                                          color: Color(0xFF64748B),
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                      ),
+                                      Row(
+                                        children: [
+                                          const Icon(
+                                            Icons.access_time_rounded,
+                                            size: 14,
+                                            color: Color(0xFF64748B),
+                                          ),
+                                          const SizedBox(width: 4),
+                                          Text(
+                                            news.readTime,
+                                            style: const TextStyle(
+                                              fontSize: 11,
+                                              color: Color(0xFF64748B),
+                                              fontWeight: FontWeight.w500,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
-                );
-              },
+                  );
+                },
+              ),
             ),
-          ),
-          const SizedBox(height: 10),
+            const SizedBox(height: 10),
 
-          // INDIKATOR TITIK SLIDER (DOTS)
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: List.generate(
-              _newsItems.length,
-              (index) => AnimatedContainer(
-                duration: const Duration(milliseconds: 300),
-                margin: const EdgeInsets.symmetric(horizontal: 3),
-                width: _currentNewsPage == index ? 16 : 6,
-                height: 6,
-                decoration: BoxDecoration(
-                  color: _currentNewsPage == index
-                      ? primaryPink
-                      : const Color(0xFFCBD5E1),
-                  borderRadius: BorderRadius.circular(3),
+            // INDIKATOR TITIK SLIDER (DOTS)
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: List.generate(
+                carouselNews.length,
+                (index) => AnimatedContainer(
+                  duration: const Duration(milliseconds: 300),
+                  margin: const EdgeInsets.symmetric(horizontal: 3),
+                  width: _currentNewsPage == index ? 16 : 6,
+                  height: 6,
+                  decoration: BoxDecoration(
+                    color: _currentNewsPage == index
+                        ? primaryPink
+                        : const Color(0xFFCBD5E1),
+                    borderRadius: BorderRadius.circular(3),
+                  ),
                 ),
               ),
             ),
-          ),
+          ],
           const SizedBox(height: 20),
 
           // Market Hero Card: Gold Spot
@@ -826,7 +911,7 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           const SizedBox(height: 24),
 
-          // Card Tentang KIMPUL (Bagian Paling Bawah)
+          // Card Tentang KIMPUL
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
@@ -1056,8 +1141,8 @@ class _HomeScreenState extends State<HomeScreen> {
     final List<Widget> screens = [
       _buildHomeTab(),
       NewsScreen(
-        newsItems: _newsItems,
-        onOpenNewsDetail: (news) {},
+        newsItems: _liveNewsItems,
+        onOpenNewsDetail: (news) => NewsDetailModal.show(context, news),
       ),
       _buildCalculatorTab(),
       HistoryScreen(
@@ -1068,12 +1153,12 @@ class _HomeScreenState extends State<HomeScreen> {
           });
         },
         onRecalculate: (item) {},
-        onOpenDetailModal: (item) {},
+        onOpenDetailModal: (item) => CalculationDetailModal.show(context, item),
       ),
       ProfileScreen(
         user: _userProfile,
         onRequestLogout: _handleLogout,
-        onShowToast: (msg) {},
+        onShowToast: (msg) => ToastNotification.show(context, msg),
       ),
     ];
 
@@ -1081,9 +1166,7 @@ class _HomeScreenState extends State<HomeScreen> {
       backgroundColor: const Color(0xFFF8FAFC),
       appBar: HeaderWidget(
         onOpenNotifications: () {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Tidak ada notifikasi baru')),
-          );
+          NotificationModal.show(context);
         },
       ),
       body: IndexedStack(
@@ -1095,8 +1178,8 @@ class _HomeScreenState extends State<HomeScreen> {
         onTap: _onTabTapped,
         type: BottomNavigationBarType.fixed,
         backgroundColor: Colors.white,
-        selectedItemColor: primaryPink, // 🌟 Warna Pink KIMPUL saat item aktif
-        unselectedItemColor: const Color(0xFF94A3B8), // Warna Slate untuk item tidak aktif
+        selectedItemColor: primaryPink,
+        unselectedItemColor: const Color(0xFF94A3B8),
         selectedFontSize: 11.5,
         unselectedFontSize: 11.5,
         items: const [

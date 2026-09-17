@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:kimpul/services/api_service.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -29,7 +30,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     super.dispose();
   }
 
-  // Fungsi Register Mockup (Tanpa Koneksi Firebase/Database)
+  // Fungsi Register beneran, manggil backend PHP
   Future<void> _registerUser() async {
     // Validasi input kosong
     if (_nameController.text.trim().isEmpty ||
@@ -55,8 +56,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
       _isLoading = true;
     });
 
-    // Simulasi delay proses registrasi (1 detik)
-    await Future.delayed(const Duration(seconds: 1));
+    final result = await ApiService.registerUser(
+      _nameController.text.trim(),
+      _emailController.text.trim(),
+      _passwordController.text.trim(),
+    );
 
     if (!mounted) return;
 
@@ -64,12 +68,18 @@ class _RegisterScreenState extends State<RegisterScreen> {
       _isLoading = false;
     });
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Registrasi Berhasil! Silakan Masuk.')),
-    );
+    if (result['status'] == 'success') {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Registrasi Berhasil! Silakan Masuk.')),
+      );
 
-    // Kembali ke halaman Login
-    Navigator.pop(context);
+      // Kembali ke halaman Login
+      Navigator.pop(context);
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(result['message'] ?? 'Registrasi gagal')),
+      );
+    }
   }
 
   @override

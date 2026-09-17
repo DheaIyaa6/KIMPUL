@@ -53,7 +53,7 @@ class _NewsScreenState extends State<NewsScreen> {
   bool _isRefreshing = false;
   bool _isLoadingLive = true;
 
-  // List internal untuk menampung berita Live TradingView
+  // List internal untuk menampung berita Live dari RSS CNBC/Global
   List<NewsItem> _liveNewsItems = [];
 
   @override
@@ -65,8 +65,8 @@ class _NewsScreenState extends State<NewsScreen> {
       });
     });
 
-    // Ambil Berita Live TradingView saat Pertama kali Layar Dimuat
-    _fetchLiveTradingViewNews();
+    // Ambil Berita Live CNBC saat Pertama kali Layar Dimuat
+    _fetchLiveCnbcNews();
   }
 
   @override
@@ -75,11 +75,12 @@ class _NewsScreenState extends State<NewsScreen> {
     super.dispose();
   }
 
-  // FUNGSI FETCH LIVE RSS TRADINGVIEW
-  Future<void> _fetchLiveTradingViewNews() async {
+  // FUNGSI FETCH LIVE RSS (CNBC MARKETS FEED)
+  Future<void> _fetchLiveCnbcNews() async {
     try {
+      // Endpoint RSS CNBC World Markets
       final response = await http.get(
-        Uri.parse('https://www.tradingview.com/feed/'),
+        Uri.parse('https://search.cnbc.com/rs/search/combined:true/show:10000664/stripDir:true/false/false/format:rss'),
       );
 
       if (response.statusCode == 200) {
@@ -109,20 +110,30 @@ class _NewsScreenState extends State<NewsScreen> {
                 .replaceAll(RegExp(r'<[^>]*>'), '')
                 .trim();
             if (cleanSummary.isEmpty) {
-              cleanSummary = 'Klik untuk membaca analisa dan detail berita pasar terkini...';
+              cleanSummary = 'Klik untuk membaca analisa pasar keuangan terkini dari CNBC...';
+            }
+
+            // Ekstraksi Gambar dari Media Enclosure/Content (bila ada)
+            String fallbackImage = 'https://images.unsplash.com/photo-1610375461246-83df859d849d?auto=format&fit=crop&w=600&q=80';
+            String extractedImageUrl = fallbackImage;
+
+            if (item.media?.contents != null && item.media!.contents!.isNotEmpty) {
+              extractedImageUrl = item.media!.contents!.first.url ?? fallbackImage;
+            } else if (item.enclosure?.url != null) {
+              extractedImageUrl = item.enclosure!.url!;
             }
 
             fetchedItems.add(
               NewsItem(
                 id: item.guid ?? '$i-${DateTime.now().millisecondsSinceEpoch}',
-                title: item.title ?? 'Berita Pasar Emas & Komoditas',
+                title: item.title ?? 'Berita Pasar Finansial Global',
                 summary: cleanSummary,
-                source: 'TradingView Newsroom',
+                source: 'CNBC International',
                 timeAgo: timeFormatted,
                 readTime: '3 mnt baca',
-                category: 'XAU/USD',
+                category: 'MARKETS',
                 tagType: 'MARKET',
-                imageUrl: 'https://images.unsplash.com/photo-1610375461246-83df859d849d?auto=format&fit=crop&w=600&q=80',
+                imageUrl: extractedImageUrl,
                 fullContent: item.link ?? '',
                 featured: i == 0, // Item pertama dijadikan Sorotan Utama
               ),
@@ -190,7 +201,7 @@ class _NewsScreenState extends State<NewsScreen> {
       _isRefreshing = true;
     });
 
-    await _fetchLiveTradingViewNews();
+    await _fetchLiveCnbcNews();
 
     if (mounted) {
       setState(() {
@@ -386,14 +397,14 @@ class _NewsScreenState extends State<NewsScreen> {
 
           const SizedBox(height: 16),
 
-            if (_isLoadingLive) ...[
-              const Padding(
-                padding: EdgeInsets.symmetric(vertical: 32),
-                child: Center(
-                  child: CircularProgressIndicator(),
-                ),
+          if (_isLoadingLive) ...[
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 32),
+              child: Center(
+                child: CircularProgressIndicator(),
               ),
-            ] else ...[
+            ),
+          ] else ...[
             // HERO FEATURED ARTICLE (LANGSUNG DIBAWAH SEARCH BAR)
             if (featuredArticle != null &&
                 featuredArticle.title.isNotEmpty &&
@@ -715,48 +726,23 @@ class _NewsScreenState extends State<NewsScreen> {
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),
+                    elevation: 0,
                   ),
                   child: _isLoadingMore
-                      ? Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: const [
-                            SizedBox(
-                              width: 16,
-                              height: 16,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: Colors.white,
-                              ),
-                            ),
-                            SizedBox(width: 8),
-                            Text(
-                              'Memuat berita...',
-                              style: TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600,
-                                color: Colors.white,
-                              ),
-                            ),
-                          ],
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
                         )
-                      : Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: const [
-                            Icon(
-                              Icons.expand_more_rounded,
-                              size: 18,
-                              color: Colors.white,
-                            ),
-                            SizedBox(width: 4),
-                            Text(
-                              'Muat Lebih Banyak Berita',
-                              style: TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600,
-                                color: Colors.white,
-                              ),
-                            ),
-                          ],
+                      : const Text(
+                          'Muat Lebih Banyak',
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
                 ),
               ),

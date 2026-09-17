@@ -1,37 +1,6 @@
 import 'package:flutter/material.dart';
-
-// --- MODELS ---
-class NewsItem {
-  final String title;
-  final String source;
-  final String timeAgo;
-  final String readTime;
-  final String category;
-  final String imageUrl;
-  final String fullContent;
-
-  NewsItem({
-    required this.title,
-    required this.source,
-    required this.timeAgo,
-    required this.readTime,
-    required this.category,
-    required this.imageUrl,
-    required this.fullContent,
-  });
-}
-
-class UserProfile {
-  final String name;
-  final String email;
-  final String phone;
-
-  UserProfile({
-    required this.name,
-    required this.email,
-    required this.phone,
-  });
-}
+import 'package:kimpul/screens/news_screen.dart';
+import 'package:kimpul/screens/profile_screen.dart';
 
 // --- REUSABLE BASE MODAL DIALOG ---
 class ModalWrapper extends StatelessWidget {
@@ -152,7 +121,7 @@ class NewsDetailModal extends StatelessWidget {
                 ),
                 const SizedBox(height: 10),
                 Text(
-                  news.fullContent,
+                  news.summary,
                   style: const TextStyle(fontSize: 13, color: Color(0xFF64748B), height: 1.5),
                 ),
                 const SizedBox(height: 16),
@@ -165,7 +134,7 @@ class NewsDetailModal extends StatelessWidget {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       const Text(
-                        'TradingView Feed',
+                        'CNBC Feed',
                         style: TextStyle(fontSize: 11.5, color: Color(0xFF94A3B8), fontWeight: FontWeight.w500),
                       ),
                       ElevatedButton(
@@ -262,11 +231,11 @@ class CalculationDetailModal extends StatelessWidget {
                     const SizedBox(height: 8),
                     Row(
                       children: [
-                        _buildPivotBadge('H', item.high ?? 0.0),
+                        _buildPivotBadge('PP', item.pp ?? 0.0),
                         const SizedBox(width: 6),
-                        _buildPivotBadge('L', item.low ?? 0.0),
+                        _buildPivotBadge('R1', item.r1 ?? 0.0),
                         const SizedBox(width: 6),
-                        _buildPivotBadge('C', item.close ?? 0.0),
+                        _buildPivotBadge('S1', item.s1 ?? 0.0),
                       ],
                     ),
                   ],
@@ -278,24 +247,16 @@ class CalculationDetailModal extends StatelessWidget {
               const SizedBox(height: 6),
               Column(
                 children: [
-                  if (item.r4 != null || item.s4 != null) ...[
+                  if (item.r3 != null || item.s3 != null) ...[
                     Row(
                       children: [
-                        _buildLevelBox('R4', item.r4 ?? 0.0, true, primaryColor),
+                        _buildLevelBox('R3', item.r3 ?? 0.0, true, primaryColor),
                         const SizedBox(width: 6),
-                        _buildLevelBox('S4', item.s4 ?? 0.0, false, primaryColor),
+                        _buildLevelBox('S3', item.s3 ?? 0.0, false, primaryColor),
                       ],
                     ),
                     const SizedBox(height: 6),
                   ],
-                  Row(
-                    children: [
-                      _buildLevelBox('R3', item.r3 ?? 0.0, true, primaryColor),
-                      const SizedBox(width: 6),
-                      _buildLevelBox('S3', item.s3 ?? 0.0, false, primaryColor),
-                    ],
-                  ),
-                  const SizedBox(height: 6),
                   Row(
                     children: [
                       _buildLevelBox('R2', item.r2 ?? 0.0, true, primaryColor),
@@ -324,20 +285,13 @@ class CalculationDetailModal extends StatelessWidget {
                 ),
                 child: Column(
                   children: [
-                    _buildRowInfo('Tipe Transaksi:', (item.transactionType == 'buy') ? 'BELI FISIK' : 'JUAL / BUYBACK'),
-                    const SizedBox(height: 6),
                     _buildRowInfo('Gramatur / Karat:', '${item.weight ?? 0} gram • ${item.purityLabel ?? "24K"}'),
-                    const SizedBox(height: 6),
-                    _buildRowInfo('Harga Spot Dasar:', 'Rp ${item.basePrice ?? 0} / gr'),
                   ],
                 ),
               ),
               const SizedBox(height: 12),
               Column(
                 children: [
-                  _buildRowInfo('Subtotal Bahan:', 'Rp ${item.grandTotal ?? 0}'),
-                  const SizedBox(height: 6),
-                  _buildRowInfo('Cetak CertiCard:', 'Rp ${item.mintCost ?? 0}'),
                   const Divider(height: 20, color: Color(0xFFE2E8F0)),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -815,9 +769,7 @@ class ConsultationModal extends StatelessWidget {
             SizedBox(
               width: double.infinity,
               child: ElevatedButton.icon(
-                onPressed: () {
-                  // Tautan WhatsApp dapat di-handle via url_launcher
-                },
+                onPressed: () {},
                 icon: const Icon(Icons.chat, size: 18),
                 label: const Text('Buka WhatsApp', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
                 style: ElevatedButton.styleFrom(
