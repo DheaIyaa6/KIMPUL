@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:kimpul/screens/register_screen.dart';
 import 'package:kimpul/screens/lupa_pass.dart';
 import 'package:kimpul/screens/home_screen.dart';
+import 'package:kimpul/services/api_service.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -25,7 +26,7 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
-  // Fungsi Login Mockup (Tanpa Koneksi Firebase/Database)
+  // Fungsi Login beneran, manggil backend PHP
   Future<void> _loginUser() async {
     if (_emailController.text.trim().isEmpty ||
         _passwordController.text.trim().isEmpty) {
@@ -39,8 +40,10 @@ class _LoginScreenState extends State<LoginScreen> {
       _isLoading = true;
     });
 
-    // Simulasi delay proses login (1 detik)
-    await Future.delayed(const Duration(seconds: 1));
+    final result = await ApiService.loginUser(
+      _emailController.text.trim(),
+      _passwordController.text.trim(),
+    );
 
     if (!mounted) return;
 
@@ -48,16 +51,20 @@ class _LoginScreenState extends State<LoginScreen> {
       _isLoading = false;
     });
 
-    // Tampilkan pesan sukses
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Login Berhasil!')),
-    );
+    if (result['status'] == 'success') {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Login Berhasil!')),
+      );
 
-    // Pindah ke HomeScreen dan hapus halaman login dari stack
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(builder: (context) => const HomeScreen()),
-    );
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => const HomeScreen()),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(result['message'] ?? 'Login gagal')),
+      );
+    }
   }
 
   @override
