@@ -33,8 +33,8 @@ class NewsItem {
 
 class ApiService {
   // URL dasar folder backend di Laragon
-  static const String apiBase = "http://192.168.2.50/api_flutter";
-
+  static const String apiBase = "http://192.168.1.207/api_flutter";
+  
   // URL Backend Lokal (Laragon)
   static const String baseUrl = "$apiBase/get_data.php";
 

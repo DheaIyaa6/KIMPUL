@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:kimpul/screens/modals_screen.dart';
 import 'package:kimpul/screens/edit_profile_screen.dart';
@@ -17,7 +18,7 @@ class UserProfile {
     required this.name,
     required this.email,
     this.phone = '',
-    this.avatarUrl = 'https://i.pravatar.cc/300',
+    this.avatarUrl = '', // Default dibuat string kosong
     this.clientCode = 'KMP-8892',
     this.accountNumber = '9928102831',
     this.branch = 'Surabaya, Indonesia',
@@ -79,7 +80,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
-  // Navigasi ke Halaman Ubah Kata Sandi (Disesuaikan tanpa parameter yang tidak terdefinisi)
+  // Navigasi ke Halaman Ubah Kata Sandi
   void _navigateToChangePassword() {
     Navigator.push(
       context,
@@ -89,8 +90,32 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
+  // Menentukan ImageProvider yang tepat (Lokal File vs URL Network vs Default Null)
+  ImageProvider? _getAvatarProvider(String path) {
+    if (path.trim().isEmpty || path.contains('pravatar.cc')) {
+      return null;
+    }
+
+    // Jika path menunjuk ke file lokal di HP (hasil ImagePicker)
+    if (path.startsWith('/') || path.startsWith('file://') || path.contains(':')) {
+      final file = File(path);
+      if (file.existsSync()) {
+        return FileImage(file);
+      }
+    }
+
+    // Jika berupa URL HTTP/HTTPS biasa
+    if (path.startsWith('http://') || path.startsWith('https://')) {
+      return NetworkImage(path);
+    }
+
+    return null;
+  }
+
   @override
   Widget build(BuildContext context) {
+    final avatarImageProvider = _getAvatarProvider(_currentUser.avatarUrl);
+
     return SingleChildScrollView(
       padding: const EdgeInsets.only(bottom: 24, left: 16, right: 16, top: 12),
       child: Column(
@@ -120,16 +145,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
               children: [
                 Stack(
                   children: [
+                    // CIRCLE AVATAR (Mendukung Foto Lokal & URL)
                     CircleAvatar(
                       radius: 40,
-                      backgroundColor: const Color(0xFFF1F5F9),
-                      backgroundImage: NetworkImage(_currentUser.avatarUrl),
-                      onBackgroundImageError: (exception, stackTrace) {},
-                      child: const Icon(
-                        Icons.person_rounded,
-                        size: 48,
-                        color: Color(0xFF64748B),
-                      ),
+                      backgroundColor: const Color(0xFFE2E8F0),
+                      backgroundImage: avatarImageProvider,
+                      onBackgroundImageError: avatarImageProvider != null
+                          ? (exception, stackTrace) {}
+                          : null,
+                      child: avatarImageProvider == null
+                          ? const Icon(
+                              Icons.person_rounded,
+                              size: 52,
+                              color: Color(0xFF94A3B8),
+                            )
+                          : null,
                     ),
                     Positioned(
                       bottom: 0,
@@ -182,10 +212,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   _currentUser.email,
                   style: const TextStyle(fontSize: 13, color: Color(0xFF64748B)),
                 ),
-                Text(
-                  _currentUser.phone,
-                  style: const TextStyle(fontSize: 12, color: Color(0xFF94A3B8)),
-                ),
               ],
             ),
           ),
@@ -204,7 +230,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 _buildMenuItem(
                   icon: Icons.person_outlined,
                   title: 'Edit Profil',
-                  subtitle: 'Ubah nama, nomor telepon, atau kontak',
+                  subtitle: 'Ubah nama atau kontak profil',
                   onTap: _navigateToEditProfile,
                 ),
                 const Divider(height: 1, color: Color(0xFFF1F5F9)),
