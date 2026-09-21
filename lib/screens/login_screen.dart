@@ -12,7 +12,6 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  // Controller untuk input email dan password
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
 
@@ -26,7 +25,6 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
-  // Fungsi Login ke backend PHP
   Future<void> _loginUser() async {
     if (_emailController.text.trim().isEmpty ||
         _passwordController.text.trim().isEmpty) {
@@ -56,10 +54,17 @@ class _LoginScreenState extends State<LoginScreen> {
         const SnackBar(content: Text('Login Berhasil!')),
       );
 
+      final userData = ApiService.extractUserData(result);
+      final String namaUser = userData['nama'] ?? 'Pengguna';
+      final String emailUser = userData['email'] ?? '';
+
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
-          builder: (context) => const HomeScreen(),
+          builder: (context) => HomeScreen(
+            userName: namaUser,
+            userEmail: emailUser,
+          ),
         ),
       );
     } else {
@@ -104,7 +109,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
                 const SizedBox(height: 32),
 
-                // --- Email ---
+                // Email
                 const Text('Email',
                     style: TextStyle(fontWeight: FontWeight.w500)),
                 const SizedBox(height: 8),
@@ -123,7 +128,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
                 const SizedBox(height: 20),
 
-                // --- Password ---
+                // Password
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
@@ -176,7 +181,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
                 const SizedBox(height: 32),
 
-                // --- Tombol Masuk ---
+                // Tombol Masuk
                 ElevatedButton(
                   onPressed: _isLoading ? null : _loginUser,
                   style: ElevatedButton.styleFrom(
@@ -205,7 +210,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
                 const SizedBox(height: 24),
 
-                // --- Belum Punya Akun ---
+                // Belum Punya Akun
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [

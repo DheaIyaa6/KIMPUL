@@ -35,12 +35,33 @@ class NewsItem {
 class ApiService {
   // URL dasar folder backend di Laragon
   static const String apiBase = "http://192.168.1.207/api_flutter";
-  
+
   // URL Backend Lokal (Laragon)
   static const String baseUrl = "$apiBase/get_data.php";
 
   // URL Backend PHP untuk Proxy Berita Live (Laragon)
   static const String newsUrl = "$apiBase/get_news.php";
+
+  static Map<String, String> extractUserData(Map<String, dynamic> response) {
+    final rawData = response['data'];
+    final Map<String, dynamic> candidate = {};
+
+    if (rawData is Map) {
+      candidate.addAll(Map<String, dynamic>.from(rawData));
+      final nestedUser = rawData['user'];
+      if (nestedUser is Map) {
+        candidate.addAll(Map<String, dynamic>.from(nestedUser));
+      }
+    }
+
+    final String nama = (candidate['nama'] ?? candidate['name'] ?? candidate['full_name'] ?? 'Pengguna').toString();
+    final String email = (candidate['email'] ?? '').toString();
+
+    return {
+      'nama': nama,
+      'email': email,
+    };
+  }
 
   // FUNGSI 1: Ambil Data User dari Laragon (PHP)
   static Future<List<dynamic>> getUsers() async {
