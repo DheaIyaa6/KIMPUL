@@ -58,7 +58,7 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _isLoadingLiveNews = true;
 
   // User Profile
-  late final UserProfile _userProfile;
+  late UserProfile _userProfile;
 
   // FUNGSI FETCH LIVE NEWS VIA API SERVICE BACKEND
   Future<void> _fetchLiveNews() async {
@@ -135,7 +135,7 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
 
-    // Ambil nama & email dari data login
+    // Ambil nama & email yang dipass dari login screen
     _userProfile = UserProfile(
       name: widget.userName,
       email: widget.userEmail,
@@ -157,6 +157,20 @@ class _HomeScreenState extends State<HomeScreen> {
 
     // Fetch Berita Live dari API Backend saat Pertama Dimuat
     _fetchLiveNews();
+  }
+
+  @override
+  void didUpdateWidget(covariant HomeScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.userName != widget.userName ||
+        oldWidget.userEmail != widget.userEmail) {
+      setState(() {
+        _userProfile = UserProfile(
+          name: widget.userName,
+          email: widget.userEmail,
+        );
+      });
+    }
   }
 
   @override
@@ -244,7 +258,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    _userProfile.name,
+                    _userProfile.name.isNotEmpty ? _userProfile.name : 'Pengguna',
                     style: const TextStyle(
                       fontSize: 22,
                       fontWeight: FontWeight.bold,
