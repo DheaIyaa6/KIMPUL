@@ -1,10 +1,9 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
-import 'package:webfeed_plus/webfeed_plus.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
+import 'package:kimpul/services/api_service.dart';
 import 'package:kimpul/screens/calculatorhub_screen.dart';
 import 'package:kimpul/screens/gold_calculator.dart';
 import 'package:kimpul/screens/header_screen.dart';
@@ -54,106 +53,45 @@ class _HomeScreenState extends State<HomeScreen> {
   // List Riwayat Perhitungan Local State
   final List<dynamic> _historyItems = [];
 
-  // State Berita Live (Didapat dari RSS Feed CNBC)
+  // State Berita Live (Didapat dari ApiService / PHP Backend Laragon)
   List<NewsItem> _liveNewsItems = [];
   bool _isLoadingLiveNews = true;
 
-  // User Profile (sekarang diambil dari data login, bukan hardcode)
+  // User Profile
   late final UserProfile _userProfile;
 
-  // FUNGSI FETCH LIVE RSS NEWS UNTUK CAROUSEL SLIDER & NEWS SCREEN
-  Future<void> _fetchLiveCnbcNews() async {
+  // FUNGSI FETCH LIVE NEWS VIA API SERVICE BACKEND
+  Future<void> _fetchLiveNews() async {
     try {
-      final response = await http.get(
-        Uri.parse('https://search.cnbc.com/rs/search/combined:true/show:10000664/stripDir:true/false/false/format:rss'),
-      );
+      final fetchedItems = await ApiService.getTradingViewNews();
 
-      if (response.statusCode == 200) {
-        final rssFeed = RssFeed.parse(response.body);
-
-        if (rssFeed.items != null && rssFeed.items!.isNotEmpty) {
-          final List<NewsItem> fetchedItems = [];
-
-          for (int i = 0; i < rssFeed.items!.length; i++) {
-            final item = rssFeed.items![i];
-
-            // Parsing Selisih Waktu
-            String timeFormatted = 'Terbaru';
-            if (item.pubDate != null) {
-              final diff = DateTime.now().difference(item.pubDate!);
-              if (diff.inMinutes < 60) {
-                timeFormatted = '${diff.inMinutes}m lalu';
-              } else if (diff.inHours < 24) {
-                timeFormatted = '${diff.inHours}j lalu';
-              } else {
-                timeFormatted = '${diff.inDays}hr lalu';
-              }
-            }
-
-            // Bersihkan Tag HTML
-            String cleanSummary = (item.description ?? '')
-                .replaceAll(RegExp(r'<[^>]*>'), '')
-                .trim();
-            if (cleanSummary.isEmpty) {
-              cleanSummary = 'Klik untuk membaca analisa pasar keuangan terkini dari CNBC...';
-            }
-
-            // Ekstraksi Gambar
-            String fallbackImage = 'https://images.unsplash.com/photo-1610375461246-83df859d849d?auto=format&fit=crop&w=600&q=80';
-            String extractedImageUrl = fallbackImage;
-
-            if (item.media?.contents != null && item.media!.contents!.isNotEmpty) {
-              extractedImageUrl = item.media!.contents!.first.url ?? fallbackImage;
-            } else if (item.enclosure?.url != null) {
-              extractedImageUrl = item.enclosure!.url!;
-            }
-
-            fetchedItems.add(
-              NewsItem(
-                id: item.guid ?? '$i-${DateTime.now().millisecondsSinceEpoch}',
-                title: item.title ?? 'Berita Pasar Finansial Global',
-                summary: cleanSummary,
-                source: 'CNBC International',
-                timeAgo: timeFormatted,
-                readTime: '3 mnt baca',
-                category: 'MARKETS',
-                tagType: 'MARKET',
-                imageUrl: extractedImageUrl,
-                fullContent: item.link ?? '',
-                featured: i == 0,
-              ),
-            );
-          }
-
-          if (mounted) {
-            setState(() {
-              _liveNewsItems = fetchedItems;
-              _isLoadingLiveNews = false;
-            });
-            _startNewsAutoSlide();
-          }
-          return;
+      if (mounted) {
+        setState(() {
+          _liveNewsItems = fetchedItems;
+          _isLoadingLiveNews = false;
+        });
+        if (_liveNewsItems.isNotEmpty) {
+          _startNewsAutoSlide();
         }
       }
     } catch (_) {
-      // Catch jika koneksi error
-    }
-
-    if (mounted) {
-      setState(() {
-        _isLoadingLiveNews = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isLoadingLiveNews = false;
+        });
+      }
     }
   }
 
-  // Timer Otomatis Slide Berita
+  // Timer Otomatis Slide 3 Berita
   void _startNewsAutoSlide() {
     _newsTimer?.cancel();
-    if (_liveNewsItems.isEmpty) return;
+    final carouselNewsCount = _liveNewsItems.take(3).length;
+    if (carouselNewsCount == 0) return;
 
-    _newsTimer = Timer.periodic(const Duration(seconds: 8), (timer) {
+    _newsTimer = Timer.periodic(const Duration(seconds: 5), (timer) {
       if (mounted && _newsPageController.hasClients) {
-        if (_currentNewsPage < _liveNewsItems.take(5).length - 1) {
+        if (_currentNewsPage < carouselNewsCount - 1) {
           _currentNewsPage++;
           _newsPageController.animateToPage(
             _currentNewsPage,
@@ -217,8 +155,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
     _newsPageController = PageController(initialPage: 0);
 
-    // Fetch Berita Live saat Pertama Dimuat
-    _fetchLiveCnbcNews();
+    // Fetch Berita Live dari API Backend saat Pertama Dimuat
+    _fetchLiveNews();
   }
 
   @override
@@ -284,7 +222,8 @@ class _HomeScreenState extends State<HomeScreen> {
     String formattedDate = DateFormat('EEEE, d MMMM yyyy', 'id_ID').format(_currentTime);
     String formattedTime = DateFormat('HH:mm:ss', 'id_ID').format(_currentTime);
 
-    final carouselNews = _liveNewsItems.take(5).toList();
+    // AMBIL TEPAT 3 BERITA TERBARU UNTUK 3 SLIDE
+    final carouselNews = _liveNewsItems.take(3).toList();
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16.0),
@@ -375,7 +314,7 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           const SizedBox(height: 12),
 
-          // KOTAK BERITA MELAYANG (LIVE CAROUSEL SLIDER)
+          // KOTAK BERITA MELAYANG (LIVE 3 SLIDE CAROUSEL)
           if (_isLoadingLiveNews)
             Container(
               height: 260,
@@ -561,7 +500,7 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
             const SizedBox(height: 10),
 
-            // INDIKATOR TITIK SLIDER (DOTS)
+            // INDIKATOR TITIK SLIDER (DOTS 3 SLIDE)
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: List.generate(

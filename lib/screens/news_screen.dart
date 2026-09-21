@@ -1,35 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
-import 'package:webfeed_plus/webfeed_plus.dart';
-
-// Model Berita untuk Flutter
-class NewsItem {
-  final String id;
-  final String title;
-  final String summary;
-  final String source;
-  final String timeAgo;
-  final String readTime;
-  final String category;
-  final String tagType;
-  final String imageUrl;
-  final String fullContent;
-  final bool featured;
-
-  NewsItem({
-    required this.id,
-    required this.title,
-    required this.summary,
-    required this.source,
-    required this.timeAgo,
-    required this.readTime,
-    required this.category,
-    required this.tagType,
-    required this.imageUrl,
-    required this.fullContent,
-    this.featured = false,
-  });
-}
+import 'package:kimpul/services/api_service.dart';
 
 class NewsScreen extends StatefulWidget {
   final List<NewsItem> newsItems;
@@ -53,7 +23,7 @@ class _NewsScreenState extends State<NewsScreen> {
   bool _isRefreshing = false;
   bool _isLoadingLive = true;
 
-  // List internal untuk menampung berita Live dari RSS CNBC/Global
+  // List internal untuk menampung berita Live
   List<NewsItem> _liveNewsItems = [];
 
   @override
@@ -65,8 +35,14 @@ class _NewsScreenState extends State<NewsScreen> {
       });
     });
 
-    // Ambil Berita Live CNBC saat Pertama kali Layar Dimuat
-    _fetchLiveCnbcNews();
+    // Jika dari HomeScreen sudah membawa data berita, langsung pakai
+    if (widget.newsItems.isNotEmpty) {
+      _liveNewsItems = widget.newsItems;
+      _isLoadingLive = false;
+    } else {
+      // Ambil Berita Live via Backend Laragon saat Pertama kali Layar Dimuat
+      _fetchLiveNews();
+    }
   }
 
   @override
@@ -75,89 +51,28 @@ class _NewsScreenState extends State<NewsScreen> {
     super.dispose();
   }
 
-  // FUNGSI FETCH LIVE RSS (CNBC MARKETS FEED)
-  Future<void> _fetchLiveCnbcNews() async {
+  // FUNGSI FETCH LIVE NEWS VIA BACKEND LARAGON (PHP PROXY)
+  Future<void> _fetchLiveNews() async {
     try {
-      // Endpoint RSS CNBC World Markets
-      final response = await http.get(
-        Uri.parse('https://search.cnbc.com/rs/search/combined:true/show:10000664/stripDir:true/false/false/format:rss'),
-      );
+      final fetchedItems = await ApiService.getTradingViewNews();
 
-      if (response.statusCode == 200) {
-        final rssFeed = RssFeed.parse(response.body);
-
-        if (rssFeed.items != null && rssFeed.items!.isNotEmpty) {
-          final List<NewsItem> fetchedItems = [];
-
-          for (int i = 0; i < rssFeed.items!.length; i++) {
-            final item = rssFeed.items![i];
-
-            // Parsing Waktu Sederhana
-            String timeFormatted = 'Terbaru';
-            if (item.pubDate != null) {
-              final diff = DateTime.now().difference(item.pubDate!);
-              if (diff.inMinutes < 60) {
-                timeFormatted = '${diff.inMinutes}m lalu';
-              } else if (diff.inHours < 24) {
-                timeFormatted = '${diff.inHours}j lalu';
-              } else {
-                timeFormatted = '${diff.inDays}hr lalu';
-              }
-            }
-
-            // Ekstraksi Ringkasan Teks Tanpa HTML Tag
-            String cleanSummary = (item.description ?? '')
-                .replaceAll(RegExp(r'<[^>]*>'), '')
-                .trim();
-            if (cleanSummary.isEmpty) {
-              cleanSummary = 'Klik untuk membaca analisa pasar keuangan terkini dari CNBC...';
-            }
-
-            // Ekstraksi Gambar dari Media Enclosure/Content (bila ada)
-            String fallbackImage = 'https://images.unsplash.com/photo-1610375461246-83df859d849d?auto=format&fit=crop&w=600&q=80';
-            String extractedImageUrl = fallbackImage;
-
-            if (item.media?.contents != null && item.media!.contents!.isNotEmpty) {
-              extractedImageUrl = item.media!.contents!.first.url ?? fallbackImage;
-            } else if (item.enclosure?.url != null) {
-              extractedImageUrl = item.enclosure!.url!;
-            }
-
-            fetchedItems.add(
-              NewsItem(
-                id: item.guid ?? '$i-${DateTime.now().millisecondsSinceEpoch}',
-                title: item.title ?? 'Berita Pasar Finansial Global',
-                summary: cleanSummary,
-                source: 'CNBC International',
-                timeAgo: timeFormatted,
-                readTime: '3 mnt baca',
-                category: 'MARKETS',
-                tagType: 'MARKET',
-                imageUrl: extractedImageUrl,
-                fullContent: item.link ?? '',
-                featured: i == 0, // Item pertama dijadikan Sorotan Utama
-              ),
-            );
+      if (mounted) {
+        setState(() {
+          if (fetchedItems.isNotEmpty) {
+            _liveNewsItems = fetchedItems;
+          } else {
+            _liveNewsItems = widget.newsItems;
           }
-
-          if (mounted) {
-            setState(() {
-              _liveNewsItems = fetchedItems;
-              _isLoadingLive = false;
-            });
-          }
-          return;
-        }
+          _isLoadingLive = false;
+        });
       }
     } catch (_) {
-      // Fallback ke data bawaan jika offline / gagal fetch
-    }
-
-    if (mounted) {
-      setState(() {
-        _liveNewsItems = widget.newsItems;
-        _isLoadingLive = false;
-      });
+      if (mounted) {
+        setState(() {
+          _liveNewsItems = widget.newsItems;
+          _isLoadingLive = false;
+        });
+      }
     }
   }
 
@@ -201,7 +116,7 @@ class _NewsScreenState extends State<NewsScreen> {
       _isRefreshing = true;
     });
 
-    await _fetchLiveCnbcNews();
+    await _fetchLiveNews();
 
     if (mounted) {
       setState(() {
@@ -626,6 +541,10 @@ class _NewsScreenState extends State<NewsScreen> {
                               errorBuilder: (context, error, stackTrace) =>
                                   Container(
                                 color: const Color(0xFFF8FAFC),
+                                child: const Icon(
+                                  Icons.newspaper,
+                                  color: Color(0xFF94A3B8),
+                                ),
                               ),
                             ),
                           ),

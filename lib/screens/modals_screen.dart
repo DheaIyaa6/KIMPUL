@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:kimpul/screens/news_screen.dart';
+import 'package:kimpul/services/api_service.dart';
 import 'package:kimpul/screens/profile_screen.dart';
 
 // --- REUSABLE BASE MODAL DIALOG ---
@@ -134,7 +134,7 @@ class NewsDetailModal extends StatelessWidget {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       const Text(
-                        'CNBC Feed',
+                        'Market Feed',
                         style: TextStyle(fontSize: 11.5, color: Color(0xFF94A3B8), fontWeight: FontWeight.w500),
                       ),
                       ElevatedButton(
