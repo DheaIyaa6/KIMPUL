@@ -18,7 +18,7 @@ class UserProfile {
     required this.name,
     required this.email,
     this.phone = '',
-    this.avatarUrl = '', // Default dibuat string kosong
+    this.avatarUrl = '', // Berisi nama file foto dari DB MySQL (misal: "profile_1_1726000000.jpg")
     this.clientCode = 'KMP-8892',
     this.accountNumber = '9928102831',
     this.branch = 'Surabaya, Indonesia',
@@ -53,6 +53,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   // User yang sedang ditampilkan
   late UserProfile _currentUser;
+
+  // Base URL server Laragon
+  static const String _serverBaseUrl = "http://192.168.1.207/api_flutter/uploads";
 
   @override
   void initState() {
@@ -90,26 +93,32 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  // Menentukan ImageProvider yang tepat (Lokal File vs URL Network vs Default Null)
+  // 🌟 HELPER FOTO: Menentukan ImageProvider yang tepat (Server Laragon vs File HP vs Null/Icon)
   ImageProvider? _getAvatarProvider(String path) {
-    if (path.trim().isEmpty || path.contains('pravatar.cc')) {
+    final cleanPath = path.trim();
+
+    // 1. Jika path kosong, null, atau URL dummy internet, kembalikan null (akan tampil ikon person)
+    if (cleanPath.isEmpty || cleanPath == 'null' || cleanPath.contains('pravatar.cc')) {
       return null;
     }
 
-    // Jika path menunjuk ke file lokal di HP (hasil ImagePicker)
-    if (path.startsWith('/') || path.startsWith('file://') || path.contains(':')) {
-      final file = File(path);
+    // 2. Jika berupa path file lokal dari galeri/kamera HP pengguna
+    if (cleanPath.startsWith('/') || cleanPath.startsWith('file://') || cleanPath.contains(':\\')) {
+      final file = File(cleanPath);
       if (file.existsSync()) {
         return FileImage(file);
       }
     }
 
-    // Jika berupa URL HTTP/HTTPS biasa
-    if (path.startsWith('http://') || path.startsWith('https://')) {
-      return NetworkImage(path);
+    // 3. Jika berupa URL HTTP/HTTPS lengkap dari internet/server
+    if (cleanPath.startsWith('http://') || cleanPath.startsWith('https://')) {
+      return NetworkImage('$cleanPath?v=${DateTime.now().millisecondsSinceEpoch}');
     }
 
-    return null;
+    // 4. Jika hanya berupa nama file dari DB MySQL (misal: "profile_1_1726000000.jpg")
+    // Ambil file foto langsung dari folder uploads Laragon
+    final serverImageUrl = '$_serverBaseUrl/$cleanPath?v=${DateTime.now().millisecondsSinceEpoch}';
+    return NetworkImage(serverImageUrl);
   }
 
   @override
@@ -145,7 +154,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               children: [
                 Stack(
                   children: [
-                    // CIRCLE AVATAR (Mendukung Foto Lokal & URL)
+                    // CIRCLE AVATAR (Mendukung Foto Server Laragon, File HP, & Ikon Bawaan)
                     CircleAvatar(
                       radius: 40,
                       backgroundColor: const Color(0xFFE2E8F0),

@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:kimpul/services/api_service.dart';
 import 'profile_screen.dart' show UserProfile;
 
 /// Halaman Edit Profil — terpisah dari ProfileScreen.
@@ -134,51 +135,101 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     return null;
   }
 
+  // 🌟 FUNGSI SIMPAN DENGAN KONEKSI KE API LARAGON
   Future<void> _handleSave() async {
     if (!_formKey.currentState!.validate()) return;
 
     setState(() => _isSaving = true);
 
-    // Tentukan URL/Path avatar baru
-    final avatarPath = _selectedImageFile != null
-        ? _selectedImageFile!.path
-        : widget.user.avatarUrl;
-
-    final updatedUser = UserProfile(
-      name: _nameController.text.trim(),
-      email: _emailController.text.trim(),
-      phone: widget.user.phone,
-      avatarUrl: avatarPath,
-      clientCode: widget.user.clientCode,
-      accountNumber: widget.user.accountNumber,
-      branch: widget.user.branch,
-    );
-
     try {
-      if (widget.onSave != null) {
-        await widget.onSave!(updatedUser);
-      }
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Profil berhasil diperbarui')),
+      // 1. Panggil API Update Profil ke backend Laragon
+      final apiResult = await ApiService.updateProfile(
+        id: "1", // Sesuaikan dengan ID user aktif dari session/state
+        nama: _nameController.text.trim(),
+        email: _emailController.text.trim(),
+        imageFile: _selectedImageFile,
       );
-      Navigator.pop(context, updatedUser);
+
+      if (apiResult['status'] == 'success') {
+        // Tentukan nama file foto untuk disimpan ke Model User Profile
+        String newAvatarFileName = widget.user.avatarUrl;
+        
+        if (apiResult['foto'] != null && apiResult['foto'].toString().isNotEmpty) {
+          newAvatarFileName = apiResult['foto'].toString();
+        } else if (_selectedImageFile != null) {
+          newAvatarFileName = _selectedImageFile!.path;
+        }
+
+        final updatedUser = UserProfile(
+          name: _nameController.text.trim(),
+          email: _emailController.text.trim(),
+          phone: widget.user.phone,
+          avatarUrl: newAvatarFileName,
+          clientCode: widget.user.clientCode,
+          accountNumber: widget.user.accountNumber,
+          branch: widget.user.branch,
+        );
+
+        if (widget.onSave != null) {
+          await widget.onSave!(updatedUser);
+        }
+
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Profil berhasil diperbarui di database!')),
+        );
+        Navigator.pop(context, updatedUser);
+      } else {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(apiResult['message'] ?? 'Gagal menyimpan perubahan')),
+        );
+      }
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Gagal menyimpan: $e')),
+        SnackBar(content: Text('Terjadi kesalahan: $e')),
       );
     } finally {
       if (mounted) setState(() => _isSaving = false);
     }
   }
 
+  // 🌟 HELPER FOTO: Menentukan ImageProvider Avatar (HP / Server Laragon / Null)
+  ImageProvider? _getAvatarImage() {
+    // 1. Jika pengguna baru saja memilih foto dari kamera/galeri HP
+    if (_selectedImageFile != null) {
+      return FileImage(_selectedImageFile!);
+    }
+
+    final avatarPath = widget.user.avatarUrl.trim();
+
+    // 2. Jika kosong atau URL dummy internet
+    if (avatarPath.isEmpty || avatarPath == 'null' || avatarPath.contains('pravatar.cc')) {
+      return null;
+    }
+
+    // 3. Jika berupa path file lokal di HP
+    if (avatarPath.startsWith('/') || avatarPath.startsWith('file://') || avatarPath.contains(':\\')) {
+      final file = File(avatarPath);
+      if (file.existsSync()) {
+        return FileImage(file);
+      }
+    }
+
+    // 4. Jika berupa URL HTTP/HTTPS lengkap
+    if (avatarPath.startsWith('http://') || avatarPath.startsWith('https://')) {
+      return NetworkImage('$avatarPath?v=${DateTime.now().millisecondsSinceEpoch}');
+    }
+
+    // 5. Jika berisi nama file foto dari DB MySQL (misal: "profile_1_1726000000.jpg")
+    final serverUrl = "${ApiService.apiBase}/uploads/$avatarPath?v=${DateTime.now().millisecondsSinceEpoch}";
+    return NetworkImage(serverUrl);
+  }
+
   @override
   Widget build(BuildContext context) {
-    // Mengecek apakah ada gambar yang dipilih atau diset sebelumnya
-    final bool hasCustomAvatar = _selectedImageFile != null ||
-        (widget.user.avatarUrl.trim().isNotEmpty &&
-            !widget.user.avatarUrl.contains('pravatar.cc'));
+    final ImageProvider? avatarImage = _getAvatarImage();
 
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
@@ -211,12 +262,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                       child: CircleAvatar(
                         radius: 44,
                         backgroundColor: const Color(0xFFE2E8F0),
-                        backgroundImage: _selectedImageFile != null
-                            ? FileImage(_selectedImageFile!) as ImageProvider
-                            : (hasCustomAvatar
-                                ? NetworkImage(widget.user.avatarUrl)
-                                : null),
-                        child: !hasCustomAvatar && _selectedImageFile == null
+                        backgroundImage: avatarImage,
+                        child: avatarImage == null
                             ? const Icon(
                                 Icons.person_rounded,
                                 size: 52,

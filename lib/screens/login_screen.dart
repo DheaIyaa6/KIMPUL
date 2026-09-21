@@ -26,7 +26,7 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
-  // Fungsi Login beneran, manggil backend PHP
+  // Fungsi Login ke backend PHP
   Future<void> _loginUser() async {
     if (_emailController.text.trim().isEmpty ||
         _passwordController.text.trim().isEmpty) {
@@ -56,15 +56,10 @@ class _LoginScreenState extends State<LoginScreen> {
         const SnackBar(content: Text('Login Berhasil!')),
       );
 
-      final userData = result['data'] ?? {};
-
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
-          builder: (context) => HomeScreen(
-            userName: userData['nama'] ?? 'Pengguna',
-            userEmail: userData['email'] ?? '',
-          ),
+          builder: (context) => const HomeScreen(),
         ),
       );
     } else {

@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
@@ -133,6 +134,47 @@ class ApiService {
         }),
       );
       return jsonDecode(response.body);
+    } catch (e) {
+      return {"status": "error", "message": "Gagal konek ke server: $e"};
+    }
+  }
+
+  // FUNGSI 5: Update Profil User (Nama, Email, dan Foto Profil)
+  static Future<Map<String, dynamic>> updateProfile({
+    required String id,
+    required String nama,
+    required String email,
+    File? imageFile,
+  }) async {
+    try {
+      var request = http.MultipartRequest(
+        'POST',
+        Uri.parse("$apiBase/update_profile.php"),
+      );
+
+      // Mengirim field teks
+      request.fields['id'] = id;
+      request.fields['nama'] = nama;
+      request.fields['email'] = email;
+
+      // Mengirim file foto jika ada foto baru yang dipilih
+      if (imageFile != null) {
+        request.files.add(
+          await http.MultipartFile.fromPath('foto', imageFile.path),
+        );
+      }
+
+      var streamedResponse = await request.send();
+      var response = await http.Response.fromStream(streamedResponse);
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      } else {
+        return {
+          "status": "error",
+          "message": "Server error: ${response.statusCode}"
+        };
+      }
     } catch (e) {
       return {"status": "error", "message": "Gagal konek ke server: $e"};
     }
