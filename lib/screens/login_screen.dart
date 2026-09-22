@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:kimpul/screens/register_screen.dart';
 import 'package:kimpul/screens/lupa_pass.dart';
 import 'package:kimpul/screens/home_screen.dart';
+import 'package:kimpul/screens/profile_screen.dart';
 import 'package:kimpul/services/api_service.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -57,6 +58,21 @@ class _LoginScreenState extends State<LoginScreen> {
       final userData = ApiService.extractUserData(result);
       final String namaUser = userData['nama'] ?? 'Pengguna';
       final String emailUser = userData['email'] ?? '';
+
+      final savedProfile = await ProfileStorage.loadSavedProfile(
+        fallbackName: namaUser,
+        fallbackEmail: emailUser,
+      );
+
+      final userAvatar = savedProfile.avatarUrl.isNotEmpty
+          ? savedProfile.avatarUrl
+          : '';
+
+      await ProfileStorage.saveLoginProfile(
+        name: namaUser,
+        email: emailUser,
+        avatarPath: userAvatar,
+      );
 
       Navigator.pushReplacement(
         context,

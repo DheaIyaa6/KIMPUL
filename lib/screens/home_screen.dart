@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
 import 'package:kimpul/services/api_service.dart';
@@ -55,6 +56,21 @@ class _HomeScreenState extends State<HomeScreen> {
 
   // State Berita Live (Didapat dari ApiService / PHP Backend Laragon)
   List<NewsItem> _liveNewsItems = [];
+
+  List<HistoryItem> _buildLiveHistoryClosingItems() {
+    return _liveNewsItems.map((news) {
+      return HistoryItem(
+        id: 'news-${news.id}',
+        type: 'history_closing',
+        formattedDate: news.timeAgo,
+        formattedTime: news.readTime,
+        pair: news.source,
+        title: news.title,
+        description: news.summary,
+        link: news.fullContent,
+      );
+    }).toList();
+  }
   bool _isLoadingLiveNews = true;
 
   // User Profile
@@ -123,6 +139,27 @@ class _HomeScreenState extends State<HomeScreen> {
     return true;
   }
 
+  Future<void> _openNewsLink(NewsItem news) async {
+    final rawUrl = news.fullContent.trim();
+    final uri = Uri.tryParse(rawUrl);
+
+    if (uri == null || !uri.hasScheme || uri.host.isEmpty) {
+      if (mounted) {
+        NewsDetailModal.show(context, news);
+      }
+      return;
+    }
+
+    final launched = await launchUrl(
+      uri,
+      mode: LaunchMode.externalApplication,
+    );
+
+    if (!launched && mounted) {
+      NewsDetailModal.show(context, news);
+    }
+  }
+
   void _handleLogout() {
     Navigator.pushAndRemoveUntil(
       context,
@@ -135,10 +172,26 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
 
-    // Ambil nama & email yang dipass dari login screen
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      final savedProfile = await ProfileStorage.loadSavedProfile(
+        fallbackName: widget.userName,
+        fallbackEmail: widget.userEmail,
+      );
+
+      if (!mounted) return;
+      setState(() {
+        _userProfile = UserProfile(
+          name: widget.userName.isNotEmpty ? widget.userName : savedProfile.name,
+          email: widget.userEmail.isNotEmpty ? widget.userEmail : savedProfile.email,
+          avatarUrl: savedProfile.avatarUrl,
+        );
+      });
+    });
+
     _userProfile = UserProfile(
       name: widget.userName,
       email: widget.userEmail,
+      avatarUrl: '',
     );
 
     _initMiniChartWidget();
@@ -1101,11 +1154,14 @@ class _HomeScreenState extends State<HomeScreen> {
       _buildHomeTab(),
       NewsScreen(
         newsItems: _liveNewsItems,
-        onOpenNewsDetail: (news) => NewsDetailModal.show(context, news),
+        onOpenNewsDetail: _openNewsLink,
       ),
       _buildCalculatorTab(),
       HistoryScreen(
-        historyItems: List.from(_historyItems),
+        historyItems: [
+          ..._historyItems.whereType<HistoryItem>(),
+          ..._buildLiveHistoryClosingItems(),
+        ],
         onDeleteHistory: (id) {
           setState(() {
             _historyItems.removeWhere((item) => item.id == id);

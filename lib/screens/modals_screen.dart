@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:kimpul/services/api_service.dart';
 import 'package:kimpul/screens/profile_screen.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 // --- REUSABLE BASE MODAL DIALOG ---
 class ModalWrapper extends StatelessWidget {
@@ -35,6 +36,28 @@ class NewsDetailModal extends StatelessWidget {
       context: context,
       builder: (context) => NewsDetailModal(news: news),
     );
+  }
+
+  Future<void> _openFullArticle(BuildContext context) async {
+    final uri = Uri.tryParse(news.fullContent.trim());
+
+    if (uri == null || !uri.hasScheme || uri.host.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Link berita tidak tersedia saat ini.')),
+      );
+      return;
+    }
+
+    final launched = await launchUrl(
+      uri,
+      mode: LaunchMode.externalApplication,
+    );
+
+    if (!launched && context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Tidak dapat membuka link berita.')),
+      );
+    }
   }
 
   @override
@@ -137,15 +160,29 @@ class NewsDetailModal extends StatelessWidget {
                         'Market Feed',
                         style: TextStyle(fontSize: 11.5, color: Color(0xFF94A3B8), fontWeight: FontWeight.w500),
                       ),
-                      ElevatedButton(
-                        onPressed: () => Navigator.of(context).pop(),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: primaryColor,
-                          foregroundColor: Colors.white,
-                          elevation: 0,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                        ),
-                        child: const Text('Selesai Baca', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600)),
+                      Row(
+                        children: [
+                          OutlinedButton(
+                            onPressed: () => _openFullArticle(context),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: primaryColor,
+                              side: BorderSide(color: primaryColor),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            ),
+                            child: const Text('Baca Full', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600)),
+                          ),
+                          const SizedBox(width: 8),
+                          ElevatedButton(
+                            onPressed: () => Navigator.of(context).pop(),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: primaryColor,
+                              foregroundColor: Colors.white,
+                              elevation: 0,
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            ),
+                            child: const Text('Selesai', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600)),
+                          ),
+                        ],
                       ),
                     ],
                   ),

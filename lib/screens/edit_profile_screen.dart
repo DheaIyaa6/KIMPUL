@@ -2,7 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:kimpul/services/api_service.dart';
-import 'profile_screen.dart' show UserProfile;
+import 'profile_screen.dart' show UserProfile, ProfileStorage;
 
 /// Halaman Edit Profil — terpisah dari ProfileScreen.
 class EditProfileScreen extends StatefulWidget {
@@ -137,54 +137,43 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
   // 🌟 FUNGSI SIMPAN DENGAN KONEKSI KE API LARAGON
   Future<void> _handleSave() async {
-    if (!_formKey.currentState!.validate()) return;
-
     setState(() => _isSaving = true);
 
     try {
-      // 1. Panggil API Update Profil ke backend Laragon
-      final apiResult = await ApiService.updateProfile(
-        id: "1", // Sesuaikan dengan ID user aktif dari session/state
-        nama: _nameController.text.trim(),
-        email: _emailController.text.trim(),
-        imageFile: _selectedImageFile,
+      String persistedAvatarPath = widget.user.avatarUrl;
+
+      if (_selectedImageFile != null) {
+        final copiedPath = await ProfileStorage.persistPickedImage(_selectedImageFile!);
+        if (copiedPath != null) {
+          persistedAvatarPath = copiedPath;
+        }
+      }
+
+      final updatedUser = UserProfile(
+        name: widget.user.name,
+        email: widget.user.email,
+        phone: widget.user.phone,
+        avatarUrl: persistedAvatarPath,
+        clientCode: widget.user.clientCode,
+        accountNumber: widget.user.accountNumber,
+        branch: widget.user.branch,
       );
 
-      if (apiResult['status'] == 'success') {
-        // Tentukan nama file foto untuk disimpan ke Model User Profile
-        String newAvatarFileName = widget.user.avatarUrl;
-        
-        if (apiResult['foto'] != null && apiResult['foto'].toString().isNotEmpty) {
-          newAvatarFileName = apiResult['foto'].toString();
-        } else if (_selectedImageFile != null) {
-          newAvatarFileName = _selectedImageFile!.path;
-        }
+      await ProfileStorage.saveLoginProfile(
+        name: updatedUser.name,
+        email: updatedUser.email,
+        avatarPath: updatedUser.avatarUrl,
+      );
 
-        final updatedUser = UserProfile(
-          name: _nameController.text.trim(),
-          email: _emailController.text.trim(),
-          phone: widget.user.phone,
-          avatarUrl: newAvatarFileName,
-          clientCode: widget.user.clientCode,
-          accountNumber: widget.user.accountNumber,
-          branch: widget.user.branch,
-        );
-
-        if (widget.onSave != null) {
-          await widget.onSave!(updatedUser);
-        }
-
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Profil berhasil diperbarui di database!')),
-        );
-        Navigator.pop(context, updatedUser);
-      } else {
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(apiResult['message'] ?? 'Gagal menyimpan perubahan')),
-        );
+      if (widget.onSave != null) {
+        await widget.onSave!(updatedUser);
       }
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Foto profil berhasil disimpan.')),
+      );
+      Navigator.pop(context, updatedUser);
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -305,6 +294,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 hint: 'Masukkan nama lengkap',
                 icon: Icons.person_outlined,
                 validator: _validateName,
+                enabled: false,
               ),
               const SizedBox(height: 16),
 
@@ -316,6 +306,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 icon: Icons.email_outlined,
                 keyboardType: TextInputType.emailAddress,
                 validator: _validateEmail,
+                enabled: false,
               ),
               const SizedBox(height: 32),
 
@@ -379,11 +370,14 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     required IconData icon,
     TextInputType keyboardType = TextInputType.text,
     String? Function(String?)? validator,
+    bool enabled = true,
   }) {
     return TextFormField(
       controller: controller,
       keyboardType: keyboardType,
       validator: validator,
+      enabled: enabled,
+      readOnly: !enabled,
       style: const TextStyle(fontSize: 14, color: Color(0xFF0F172A)),
       decoration: InputDecoration(
         hintText: hint,

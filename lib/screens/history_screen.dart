@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 // Model untuk Data Riwayat Perhitungan
 class HistoryItem {
   final String id;
-  final String type; // 'pivot' atau 'gold'
+  final String type; // 'pivot', 'gold', 'nest', atau 'history_closing'
   final String formattedDate;
   final String formattedTime;
   final String? pair;
@@ -14,6 +15,9 @@ class HistoryItem {
   final double? weight;
   final String? purityLabel;
   final double? grandTotal;
+  final String? title;
+  final String? description;
+  final String? link;
 
   HistoryItem({
     required this.id,
@@ -28,6 +32,9 @@ class HistoryItem {
     this.weight,
     this.purityLabel,
     this.grandTotal,
+    this.title,
+    this.description,
+    this.link,
   });
 }
 
@@ -50,7 +57,7 @@ class HistoryScreen extends StatefulWidget {
 }
 
 class _HistoryScreenState extends State<HistoryScreen> {
-  String _activeFilter = 'all'; // 'all', 'pivot', 'gold'
+  String _activeFilter = 'all'; // 'all', 'pivot', 'gold', 'nest', 'history_closing'
   bool _isRefreshing = false;
 
   void _handleRefresh() async {
@@ -78,6 +85,8 @@ class _HistoryScreenState extends State<HistoryScreen> {
       if (_activeFilter == 'all') return true;
       if (_activeFilter == 'pivot') return item.type == 'pivot';
       if (_activeFilter == 'gold') return item.type == 'gold';
+      if (_activeFilter == 'nest') return item.type == 'nest';
+      if (_activeFilter == 'history_closing') return item.type == 'history_closing';
       return true;
     }).toList();
   }
@@ -173,6 +182,20 @@ class _HistoryScreenState extends State<HistoryScreen> {
                   icon: Icons.view_in_ar_rounded,
                   primaryColor: primaryColor,
                 ),
+                const SizedBox(width: 6),
+                _buildFilterChip(
+                  id: 'nest',
+                  label: 'Nest',
+                  icon: Icons.layers_rounded,
+                  primaryColor: primaryColor,
+                ),
+                const SizedBox(width: 6),
+                _buildFilterChip(
+                  id: 'history_closing',
+                  label: 'History Closing',
+                  icon: Icons.history_rounded,
+                  primaryColor: primaryColor,
+                ),
               ],
             ),
           ),
@@ -191,6 +214,22 @@ class _HistoryScreenState extends State<HistoryScreen> {
                 final item = filtered[index];
                 if (item.type == 'pivot') {
                   return _buildPivotCard(item, primaryColor);
+                } else if (item.type == 'gold') {
+                  return _buildGoldCard(item, primaryColor);
+                } else if (item.type == 'nest') {
+                  return _buildGenericHistoryCard(
+                    item: item,
+                    title: 'Nest',
+                    color: primaryColor,
+                    icon: Icons.layers_rounded,
+                  );
+                } else if (item.type == 'history_closing') {
+                  return _buildGenericHistoryCard(
+                    item: item,
+                    title: 'History Closing',
+                    color: primaryColor,
+                    icon: Icons.history_rounded,
+                  );
                 } else {
                   return _buildGoldCard(item, primaryColor);
                 }
@@ -687,6 +726,121 @@ class _HistoryScreenState extends State<HistoryScreen> {
             ],
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildGenericHistoryCard({
+    required HistoryItem item,
+    required String title,
+    required Color color,
+    required IconData icon,
+  }) {
+    final bool hasLink = (item.link ?? '').trim().isNotEmpty;
+    final String displayTitle = item.title ?? item.pair ?? 'Riwayat ${title}';
+    final String displayText = item.description ?? 'Data ${title.toLowerCase()} tersimpan pada riwayat ini.';
+
+    return InkWell(
+      onTap: hasLink
+          ? () async {
+              final uri = Uri.tryParse(item.link!.trim());
+              if (uri != null && uri.hasScheme && uri.host.isNotEmpty) {
+                await launchUrl(uri, mode: LaunchMode.externalApplication);
+              }
+            }
+          : null,
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: const Color(0xFFE2E8F0)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: color.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: color.withValues(alpha: 0.2)),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(icon, size: 14, color: color),
+                      const SizedBox(width: 4),
+                      Text(
+                        title,
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: color,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Text(
+                  '${item.formattedDate} • ${item.formattedTime}',
+                  style: const TextStyle(fontSize: 11.5, color: Color(0xFF64748B)),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Text(
+              displayTitle,
+              style: const TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: Color(0xFF0F172A),
+              ),
+            ),
+            if ((item.pair ?? '').isNotEmpty) ...[
+              const SizedBox(height: 6),
+              Text(
+                item.pair ?? '',
+                style: const TextStyle(
+                  fontSize: 12,
+                  color: Color(0xFF475569),
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+            const SizedBox(height: 8),
+            Text(
+              displayText,
+              maxLines: 3,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                fontSize: 12.5,
+                color: Color(0xFF64748B),
+                height: 1.4,
+              ),
+            ),
+            if (hasLink) ...[
+              const SizedBox(height: 10),
+              Row(
+                children: const [
+                  Icon(Icons.open_in_new_rounded, size: 14, color: Color(0xFF475569)),
+                  SizedBox(width: 4),
+                  Text(
+                    'Buka berita lengkap',
+                    style: TextStyle(
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF475569),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ],
+        ),
       ),
     );
   }

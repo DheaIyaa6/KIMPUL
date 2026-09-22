@@ -1,8 +1,70 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:kimpul/screens/modals_screen.dart';
 import 'package:kimpul/screens/edit_profile_screen.dart';
 import 'package:kimpul/screens/change_password_screen.dart';
+
+class ProfileStorage {
+  static const String _keyName = 'profile_name';
+  static const String _keyEmail = 'profile_email';
+  static const String _keyAvatarPath = 'profile_avatar_path';
+
+  static Future<void> saveLoginProfile({
+    required String name,
+    required String email,
+    String? avatarPath,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_keyName, name.trim());
+    await prefs.setString(_keyEmail, email.trim());
+
+    if (avatarPath != null && avatarPath.trim().isNotEmpty) {
+      await prefs.setString(_keyAvatarPath, avatarPath.trim());
+    }
+  }
+
+  static Future<UserProfile> loadSavedProfile({
+    String fallbackName = 'Pengguna',
+    String fallbackEmail = '',
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+    final savedName = prefs.getString(_keyName) ?? fallbackName;
+    final savedEmail = prefs.getString(_keyEmail) ?? fallbackEmail;
+    final savedAvatar = prefs.getString(_keyAvatarPath) ?? '';
+
+    return UserProfile(
+      name: savedName,
+      email: savedEmail,
+      avatarUrl: savedAvatar,
+    );
+  }
+
+  static Future<void> saveAvatarPath(String? path) async {
+    if (path == null || path.trim().isEmpty) return;
+
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_keyAvatarPath, path.trim());
+  }
+
+  static Future<String> getSavedAvatarPath() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_keyAvatarPath) ?? '';
+  }
+
+  static Future<String?> persistPickedImage(File sourceFile) async {
+    try {
+      final directory = await getApplicationDocumentsDirectory();
+      final fileName = 'profile_${DateTime.now().millisecondsSinceEpoch}.jpg';
+      final destination = await sourceFile.copy('${directory.path}/$fileName');
+      await saveAvatarPath(destination.path);
+      return destination.path;
+    } catch (_) {
+      return null;
+    }
+  }
+}
 
 // Model User Profile untuk Flutter
 class UserProfile {
