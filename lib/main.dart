@@ -1,10 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:intl/date_symbol_data_local.dart'; 
+import 'package:firebase_core/firebase_core.dart';
+import 'package:kimpul/firebase_options.dart'; 
 import 'package:kimpul/screens/splash_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-    await initializeDateFormatting('id_ID', null);
+  
+  // 🌟 Inisialisasi Firebase Core & Format Tanggal
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
+  await initializeDateFormatting('id_ID', null);
+
   runApp(const MyApp());
 }
 
@@ -44,7 +52,7 @@ class MyApp extends StatelessWidget {
           scrolledUnderElevation: 0,
         ),
 
-        // 3. Tema Bottom Navigation Bar (Menu Bawah - Fixed Error LabelStyle)
+        // 3. Tema Bottom Navigation Bar
         bottomNavigationBarTheme: const BottomNavigationBarThemeData(
           backgroundColor: backgroundColor,
           selectedItemColor: primaryColor,

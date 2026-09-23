@@ -1,10 +1,10 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:kimpul/services/api_service.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'profile_screen.dart' show UserProfile, ProfileStorage;
 
-/// Halaman Edit Profil — terpisah dari ProfileScreen.
+/// Halaman Edit Profil — terhubung dengan Firebase Auth & Penyimpanan Lokal
 class EditProfileScreen extends StatefulWidget {
   final UserProfile user;
   final Future<void> Function(UserProfile updatedUser)? onSave;
@@ -135,22 +135,37 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     return null;
   }
 
-  // 🌟 FUNGSI SIMPAN DENGAN KONEKSI KE API LARAGON
+  // 🌟 FUNGSI SIMPAN PERUBAHAN KE FIREBASE & LOKAL STORAGE
   Future<void> _handleSave() async {
+    if (!_formKey.currentState!.validate()) return;
+
     setState(() => _isSaving = true);
 
     try {
+      final String newName = _nameController.text.trim();
       String persistedAvatarPath = widget.user.avatarUrl;
 
+      // 1. Simpan foto ke penyimpanan lokal perangkat jika ada foto baru
       if (_selectedImageFile != null) {
-        final copiedPath = await ProfileStorage.persistPickedImage(_selectedImageFile!);
+        final copiedPath =
+            await ProfileStorage.persistPickedImage(_selectedImageFile!);
         if (copiedPath != null) {
           persistedAvatarPath = copiedPath;
         }
       }
 
+      // 2. Perbarui Display Name di akun Firebase Auth
+      final User? firebaseUser = FirebaseAuth.instance.currentUser;
+      if (firebaseUser != null) {
+        if (newName != firebaseUser.displayName) {
+          await firebaseUser.updateDisplayName(newName);
+        }
+        await firebaseUser.reload();
+      }
+
+      // 3. Buat objek UserProfile terevisi
       final updatedUser = UserProfile(
-        name: widget.user.name,
+        name: newName,
         email: widget.user.email,
         phone: widget.user.phone,
         avatarUrl: persistedAvatarPath,
@@ -159,6 +174,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         branch: widget.user.branch,
       );
 
+      // 4. Simpan ke local storage HP
       await ProfileStorage.saveLoginProfile(
         name: updatedUser.name,
         email: updatedUser.email,
@@ -171,7 +187,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Foto profil berhasil disimpan.')),
+        const SnackBar(content: Text('Profil berhasil diperbarui.')),
       );
       Navigator.pop(context, updatedUser);
     } catch (e) {
@@ -184,7 +200,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     }
   }
 
-  // 🌟 HELPER FOTO: Menentukan ImageProvider Avatar (HP / Server Laragon / Null)
+  // 🌟 HELPER FOTO: Menentukan ImageProvider Avatar
   ImageProvider? _getAvatarImage() {
     // 1. Jika pengguna baru saja memilih foto dari kamera/galeri HP
     if (_selectedImageFile != null) {
@@ -193,27 +209,31 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
     final avatarPath = widget.user.avatarUrl.trim();
 
-    // 2. Jika kosong atau URL dummy internet
-    if (avatarPath.isEmpty || avatarPath == 'null' || avatarPath.contains('pravatar.cc')) {
+    // 2. Jika kosong atau URL dummy internet yang tidak valid
+    if (avatarPath.isEmpty ||
+        avatarPath == 'null' ||
+        avatarPath.contains('pravatar.cc')) {
       return null;
     }
 
     // 3. Jika berupa path file lokal di HP
-    if (avatarPath.startsWith('/') || avatarPath.startsWith('file://') || avatarPath.contains(':\\')) {
-      final file = File(avatarPath);
+    if (avatarPath.startsWith('/') ||
+        avatarPath.startsWith('file://') ||
+        avatarPath.contains(':\\')) {
+      final cleanPath = avatarPath.replaceFirst('file://', '');
+      final file = File(cleanPath);
       if (file.existsSync()) {
         return FileImage(file);
       }
     }
 
-    // 4. Jika berupa URL HTTP/HTTPS lengkap
+    // 4. Jika berupa URL HTTP/HTTPS
     if (avatarPath.startsWith('http://') || avatarPath.startsWith('https://')) {
-      return NetworkImage('$avatarPath?v=${DateTime.now().millisecondsSinceEpoch}');
+      return NetworkImage(
+          '$avatarPath?v=${DateTime.now().millisecondsSinceEpoch}');
     }
 
-    // 5. Jika berisi nama file foto dari DB MySQL (misal: "profile_1_1726000000.jpg")
-    final serverUrl = "${ApiService.apiBase}/uploads/$avatarPath?v=${DateTime.now().millisecondsSinceEpoch}";
-    return NetworkImage(serverUrl);
+    return null;
   }
 
   @override
@@ -287,18 +307,18 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
               ),
               const SizedBox(height: 28),
 
-              // INPUT NAMA LENGKAP
+              // INPUT NAMA LENGKAP (Dapat Diisi/Diedit)
               _buildLabel('Nama Lengkap'),
               _buildTextField(
                 controller: _nameController,
                 hint: 'Masukkan nama lengkap',
                 icon: Icons.person_outlined,
                 validator: _validateName,
-                enabled: false,
+                enabled: true,
               ),
               const SizedBox(height: 16),
 
-              // INPUT EMAIL
+              // INPUT EMAIL (Read-Only dari Akun Terdaftar)
               _buildLabel('Email'),
               _buildTextField(
                 controller: _emailController,
@@ -384,7 +404,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         hintStyle: const TextStyle(color: Color(0xFF94A3B8), fontSize: 13),
         prefixIcon: Icon(icon, size: 20, color: const Color(0xFF64748B)),
         filled: true,
-        fillColor: Colors.white,
+        fillColor: enabled ? Colors.white : const Color(0xFFF1F5F9),
         contentPadding:
             const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
         border: OutlineInputBorder(
@@ -398,6 +418,10 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: const BorderSide(color: Color(0xFF0F172A), width: 1.4),
+        ),
+        disabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
         ),
         errorBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),

@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:kimpul/screens/register_screen.dart';
 import 'package:kimpul/screens/lupa_pass.dart';
 import 'package:kimpul/screens/home_screen.dart';
-import 'package:kimpul/screens/profile_screen.dart';
-import 'package:kimpul/services/api_service.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -26,9 +25,12 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
+  // 🌟 Fungsi Login menggunakan Firebase Authentication
   Future<void> _loginUser() async {
-    if (_emailController.text.trim().isEmpty ||
-        _passwordController.text.trim().isEmpty) {
+    final String email = _emailController.text.trim();
+    final String password = _passwordController.text.trim();
+
+    if (email.isEmpty || password.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Email dan Password harus diisi!')),
       );
@@ -39,41 +41,28 @@ class _LoginScreenState extends State<LoginScreen> {
       _isLoading = true;
     });
 
-    final result = await ApiService.loginUser(
-      _emailController.text.trim(),
-      _passwordController.text.trim(),
-    );
+    try {
+      // 1. Proses Sign In ke Firebase Auth
+      UserCredential userCredential = await FirebaseAuth.instance
+          .signInWithEmailAndPassword(email: email, password: password);
 
-    if (!mounted) return;
+      final User? user = userCredential.user;
 
-    setState(() {
-      _isLoading = false;
-    });
+      if (!mounted) return;
 
-    if (result['status'] == 'success') {
+      setState(() {
+        _isLoading = false;
+      });
+
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Login Berhasil!')),
       );
 
-      final userData = ApiService.extractUserData(result);
-      final String namaUser = userData['nama'] ?? 'Pengguna';
-      final String emailUser = userData['email'] ?? '';
+      // 2. Ambil data nama dan email pengguna dari objek Firebase User
+      final String namaUser = user?.displayName ?? 'Pengguna';
+      final String emailUser = user?.email ?? email;
 
-      final savedProfile = await ProfileStorage.loadSavedProfile(
-        fallbackName: namaUser,
-        fallbackEmail: emailUser,
-      );
-
-      final userAvatar = savedProfile.avatarUrl.isNotEmpty
-          ? savedProfile.avatarUrl
-          : '';
-
-      await ProfileStorage.saveLoginProfile(
-        name: namaUser,
-        email: emailUser,
-        avatarPath: userAvatar,
-      );
-
+      // 3. Navigasi ke HomeScreen
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
@@ -83,9 +72,38 @@ class _LoginScreenState extends State<LoginScreen> {
           ),
         ),
       );
-    } else {
+    } on FirebaseAuthException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+      });
+
+      String errorMessage = 'Login gagal, periksa email dan password Anda.';
+      if (e.code == 'user-not-found') {
+        errorMessage = 'Pengguna dengan email ini tidak ditemukan.';
+      } else if (e.code == 'wrong-password') {
+        errorMessage = 'Password yang Anda masukkan salah.';
+      } else if (e.code == 'invalid-email') {
+        errorMessage = 'Format email tidak valid.';
+      }
+
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(result['message'] ?? 'Login gagal')),
+        SnackBar(
+          content: Text(errorMessage),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Terjadi kesalahan: $e'),
+          backgroundColor: Colors.red,
+        ),
       );
     }
   }
@@ -182,9 +200,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                     suffixIcon: IconButton(
                       icon: Icon(
-                        _isObscure
-                            ? Icons.visibility_off
-                            : Icons.visibility,
+                        _isObscure ? Icons.visibility_off : Icons.visibility,
                         color: Colors.grey,
                       ),
                       onPressed: () {
@@ -236,8 +252,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         Navigator.push(
                           context,
                           MaterialPageRoute(
-                              builder: (context) =>
-                                  const RegisterScreen()),
+                              builder: (context) => const RegisterScreen()),
                         );
                       },
                       child: const Text(

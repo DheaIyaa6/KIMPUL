@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:kimpul/services/api_service.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -9,14 +9,12 @@ class RegisterScreen extends StatefulWidget {
 }
 
 class _RegisterScreenState extends State<RegisterScreen> {
-  // Controller untuk menangkap teks inputan
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   final TextEditingController _confirmPasswordController =
       TextEditingController();
 
-  // Variabel untuk mengontrol mata password utama & konfirmasi password
   bool _isPasswordObscure = true;
   bool _isConfirmPasswordObscure = true;
   bool _isLoading = false;
@@ -30,24 +28,34 @@ class _RegisterScreenState extends State<RegisterScreen> {
     super.dispose();
   }
 
-  // Fungsi Register beneran, manggil backend PHP
   Future<void> _registerUser() async {
-    // Validasi input kosong
-    if (_nameController.text.trim().isEmpty ||
-        _emailController.text.trim().isEmpty ||
-        _passwordController.text.trim().isEmpty ||
-        _confirmPasswordController.text.trim().isEmpty) {
+    final String name = _nameController.text.trim();
+    final String email = _emailController.text.trim();
+    final String password = _passwordController.text.trim();
+    final String confirmPassword = _confirmPasswordController.text.trim();
+
+    if (name.isEmpty ||
+        email.isEmpty ||
+        password.isEmpty ||
+        confirmPassword.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Semua kolom harus diisi!')),
       );
       return;
     }
 
-    // Validasi kecocokan password
-    if (_passwordController.text != _confirmPasswordController.text) {
+    if (password != confirmPassword) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
             content: Text('Password dan Konfirmasi Password tidak sama!')),
+      );
+      return;
+    }
+
+    if (password.length < 6) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+            content: Text('Password minimal harus terdiri dari 6 karakter!')),
       );
       return;
     }
@@ -56,28 +64,64 @@ class _RegisterScreenState extends State<RegisterScreen> {
       _isLoading = true;
     });
 
-    final result = await ApiService.registerUser(
-      _nameController.text.trim(),
-      _emailController.text.trim(),
-      _passwordController.text.trim(),
-    );
+    try {
+      // 1. Buat User baru di Firebase Auth
+      UserCredential userCredential = await FirebaseAuth.instance
+          .createUserWithEmailAndPassword(email: email, password: password);
 
-    if (!mounted) return;
+      // 2. Simpan Nama Lengkap ke Display Name Firebase User
+      if (userCredential.user != null) {
+        await userCredential.user!.updateDisplayName(name);
+        await userCredential.user!.reload();
+      }
 
-    setState(() {
-      _isLoading = false;
-    });
+      if (!mounted) return;
 
-    if (result['status'] == 'success') {
+      setState(() {
+        _isLoading = false;
+      });
+
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Registrasi Berhasil! Silakan Masuk.')),
+        const SnackBar(
+          content: Text('Registrasi Berhasil! Silakan Masuk.'),
+          backgroundColor: Colors.green,
+        ),
       );
 
-      // Kembali ke halaman Login
+      // Kembali ke Halaman Login
       Navigator.pop(context);
-    } else {
+    } on FirebaseAuthException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+      });
+
+      String errorMessage = 'Registrasi gagal, periksa data Anda.';
+      if (e.code == 'email-already-in-use') {
+        errorMessage = 'Email ini sudah terdaftar. Silakan gunakan email lain.';
+      } else if (e.code == 'invalid-email') {
+        errorMessage = 'Format email tidak valid.';
+      } else if (e.code == 'weak-password') {
+        errorMessage = 'Password terlalu lemah.';
+      }
+
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(result['message'] ?? 'Registrasi gagal')),
+        SnackBar(
+          content: Text(errorMessage),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Terjadi kesalahan: $e'),
+          backgroundColor: Colors.red,
+        ),
       );
     }
   }
@@ -123,7 +167,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
               ),
               const SizedBox(height: 30),
 
-              // --- Nama Lengkap ---
+              // Nama
               const Text('Nama', style: TextStyle(fontWeight: FontWeight.w500)),
               const SizedBox(height: 6),
               TextField(
@@ -140,7 +184,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
               ),
               const SizedBox(height: 16),
 
-              // --- Email ---
+              // Email
               const Text('Email', style: TextStyle(fontWeight: FontWeight.w500)),
               const SizedBox(height: 6),
               TextField(
@@ -158,7 +202,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
               ),
               const SizedBox(height: 16),
 
-              // --- Password dengan Icon Mata ---
+              // Password
               const Text('Password',
                   style: TextStyle(fontWeight: FontWeight.w500)),
               const SizedBox(height: 6),
@@ -190,7 +234,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
               ),
               const SizedBox(height: 16),
 
-              // --- Konfirmasi Password dengan Icon Mata ---
+              // Konfirmasi Password
               const Text('Konfirmasi Password',
                   style: TextStyle(fontWeight: FontWeight.w500)),
               const SizedBox(height: 6),
@@ -223,7 +267,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
               ),
               const SizedBox(height: 30),
 
-              // --- Tombol Daftar ---
+              // Tombol Daftar
               ElevatedButton(
                 onPressed: _isLoading ? null : _registerUser,
                 style: ElevatedButton.styleFrom(
@@ -253,7 +297,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
               ),
               const SizedBox(height: 20),
 
-              // --- Kembali ke Login ---
+              // Kembali ke Login
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [

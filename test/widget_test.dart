@@ -1,33 +1,22 @@
-﻿import 'package:flutter_test/flutter_test.dart';
-
-import 'package:kimpul/services/api_service.dart';
+﻿import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:kimpul/screens/login_screen.dart';
 
 void main() {
-  group('ApiService user payload parsing', () {
-    test('parses flat data payload from login response', () {
-      final payload = {
-        'status': 'success',
-        'data': {'nama': 'Budi', 'email': 'budi@mail.com'},
-      };
+  testWidgets('LoginScreen smoke test', (WidgetTester tester) async {
+    // Render LoginScreen di lingkungan pengujian widget
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: LoginScreen(),
+      ),
+    );
 
-      final user = ApiService.extractUserData(payload);
+    // Memastikan judul KIMPUL dan teks Selamat Datang tampil
+    expect(find.text('KIMPUL'), findsOneWidget);
+    expect(find.text('Selamat Datang'), findsOneWidget);
 
-      expect(user['nama'], 'Budi');
-      expect(user['email'], 'budi@mail.com');
-    });
-
-    test('parses nested user payload from login response', () {
-      final payload = {
-        'status': 'success',
-        'data': {
-          'user': {'nama': 'Sari', 'email': 'sari@mail.com'},
-        },
-      };
-
-      final user = ApiService.extractUserData(payload);
-
-      expect(user['nama'], 'Sari');
-      expect(user['email'], 'sari@mail.com');
-    });
+    // Memastikan tombol Masuk dan opsi Daftar ada
+    expect(find.text('Masuk'), findsOneWidget);
+    expect(find.text('Daftar'), findsOneWidget);
   });
 }

@@ -1,9 +1,8 @@
 import 'dart:convert';
-import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
-// 1. Model NewsItem
+/// Model NewsItem untuk Menampilkan Berita Pasar & Komoditas di App
 class NewsItem {
   final String id;
   final String title;
@@ -33,58 +32,15 @@ class NewsItem {
 }
 
 class ApiService {
-  // URL dasar folder backend di Laragon
-  static const String apiBase = "http://192.168.1.207/api_flutter";
+  // Base URL Public/API untuk layanan Fetch Berita Live
+  static const String newsApiUrl = "https://api.statickim.com/get_news.php";
 
-  // URL Backend Lokal (Laragon)
-  static const String baseUrl = "$apiBase/get_data.php";
-
-  // URL Backend PHP untuk Proxy Berita Live (Laragon)
-  static const String newsUrl = "$apiBase/get_news.php";
-
-  static Map<String, String> extractUserData(Map<String, dynamic> response) {
-    final rawData = response['data'];
-    final Map<String, dynamic> candidate = {};
-
-    if (rawData is Map) {
-      candidate.addAll(Map<String, dynamic>.from(rawData));
-      final nestedUser = rawData['user'];
-      if (nestedUser is Map) {
-        candidate.addAll(Map<String, dynamic>.from(nestedUser));
-      }
-    }
-
-    final String nama = (candidate['nama'] ?? candidate['name'] ?? candidate['full_name'] ?? 'Pengguna').toString();
-    final String email = (candidate['email'] ?? '').toString();
-
-    return {
-      'nama': nama,
-      'email': email,
-    };
-  }
-
-  // FUNGSI 1: Ambil Data User dari Laragon (PHP)
-  static Future<List<dynamic>> getUsers() async {
-    try {
-      final response = await http.get(Uri.parse(baseUrl));
-
-      if (response.statusCode == 200) {
-        final result = jsonDecode(response.body);
-        if (result['status'] == 'success') {
-          return result['data'];
-        }
-      }
-      return [];
-    } catch (e) {
-      debugPrint("Error koneksi API Laragon: $e");
-      return [];
-    }
-  }
-
-  // FUNGSI 2: Ambil Berita Live via Backend Laragon (PHP)
+  /// 🌟 FUNGSI: Ambil Berita Live Pasar & Komoditas (XAU/USD)
   static Future<List<NewsItem>> getTradingViewNews() async {
     try {
-      final response = await http.get(Uri.parse(newsUrl));
+      final response = await http
+          .get(Uri.parse(newsApiUrl))
+          .timeout(const Duration(seconds: 6));
 
       if (response.statusCode == 200) {
         final result = jsonDecode(response.body);
@@ -99,14 +55,15 @@ class ApiService {
             fetchedItems.add(
               NewsItem(
                 id: '$i-${DateTime.now().millisecondsSinceEpoch}',
-                title: item['title'] ?? 'Berita Pasar Emas & Komoditas',
-                summary: 'Klik untuk membaca analisa dan detail berita pasar terkini...',
+                title: item['title'] ?? 'Analisa & Berita Pasar Komoditas Terkini',
+                summary:
+                    item['summary'] ?? 'Klik untuk membaca detail pergerakan pasar emas dan valuta asing...',
                 source: item['source'] ?? 'Market News',
                 timeAgo: item['pub_date'] ?? 'Terbaru',
                 readTime: '3 mnt baca',
                 category: 'XAU/USD',
                 tagType: 'MARKET',
-                imageUrl:
+                imageUrl: item['image'] ??
                     'https://images.unsplash.com/photo-1610375461246-83df859d849d?auto=format&fit=crop&w=600&q=80',
                 fullContent: item['link'] ?? '',
                 featured: i == 0,
@@ -116,88 +73,55 @@ class ApiService {
           return fetchedItems;
         }
       }
-      return [];
+      return _getFallbackNews();
     } catch (e) {
-      debugPrint("Error koneksi API Berita Backend: $e");
-      return [];
+      debugPrint("Koneksi API Berita eksternal bermasalah, memuat berita dummy: $e");
+      return _getFallbackNews();
     }
   }
 
-  // FUNGSI 3: Register user baru
-  static Future<Map<String, dynamic>> registerUser(
-      String nama, String email, String password) async {
-    try {
-      final response = await http.post(
-        Uri.parse("$apiBase/register.php"),
-        headers: {"Content-Type": "application/json"},
-        body: jsonEncode({
-          "nama": nama,
-          "email": email,
-          "password": password,
-        }),
-      );
-      return jsonDecode(response.body);
-    } catch (e) {
-      return {"status": "error", "message": "Gagal konek ke server: $e"};
-    }
-  }
-
-  // FUNGSI 4: Login user
-  static Future<Map<String, dynamic>> loginUser(
-      String email, String password) async {
-    try {
-      final response = await http.post(
-        Uri.parse("$apiBase/login.php"),
-        headers: {"Content-Type": "application/json"},
-        body: jsonEncode({
-          "email": email,
-          "password": password,
-        }),
-      );
-      return jsonDecode(response.body);
-    } catch (e) {
-      return {"status": "error", "message": "Gagal konek ke server: $e"};
-    }
-  }
-
-  // FUNGSI 5: Update Profil User (Nama, Email, dan Foto Profil)
-  static Future<Map<String, dynamic>> updateProfile({
-    required String id,
-    required String nama,
-    required String email,
-    File? imageFile,
-  }) async {
-    try {
-      var request = http.MultipartRequest(
-        'POST',
-        Uri.parse("$apiBase/update_profile.php"),
-      );
-
-      // Mengirim field teks
-      request.fields['id'] = id;
-      request.fields['nama'] = nama;
-      request.fields['email'] = email;
-
-      // Mengirim file foto jika ada foto baru yang dipilih
-      if (imageFile != null) {
-        request.files.add(
-          await http.MultipartFile.fromPath('foto', imageFile.path),
-        );
-      }
-
-      var streamedResponse = await request.send();
-      var response = await http.Response.fromStream(streamedResponse);
-
-      if (response.statusCode == 200) {
-        return jsonDecode(response.body);
-      } else {
-        return {
-          "status": "error",
-          "message": "Server error: ${response.statusCode}"
-        };
-      }
-    } catch (e) {
-      return {"status": "error", "message": "Gagal konek ke server: $e"};
-    }
+  /// 🌟 FALLBACK BERITA: Menampilkan data dummy jika API berita offline/timeout
+  static List<NewsItem> _getFallbackNews() {
+    return [
+      NewsItem(
+        id: '1',
+        title: 'Harga Emas Antam Naik Rp 5.000 Hari Ini, Tembus Rekor Baru',
+        summary: 'Pergerakan harga emas batangan domestik terus menguat seiring dengan ketidakpastian pasar global.',
+        source: 'KIMPUL Market Research',
+        timeAgo: '1 jam lalu',
+        readTime: '2 mnt baca',
+        category: 'XAU/USD',
+        tagType: 'HOT',
+        imageUrl: 'https://images.unsplash.com/photo-1610375461246-83df859d849d?auto=format&fit=crop&w=600&q=80',
+        fullContent: 'https://google.com',
+        featured: true,
+      ),
+      NewsItem(
+        id: '2',
+        title: 'Prediksi Suku Bunga The Fed dan Dampaknya Terhadap Nilai Tukar Rupiah',
+        summary: 'Sinyal pemangkasan suku bunga acuan diperkirakan akan memberi dorongan positif bagi aset kripto dan mata uang berkembang.',
+        source: 'Financial News',
+        timeAgo: '3 jam lalu',
+        readTime: '4 mnt baca',
+        category: 'FOREX',
+        tagType: 'ANALYSIS',
+        imageUrl: 'https://images.unsplash.com/photo-1590283603385-17ffb3a7f29f?auto=format&fit=crop&w=600&q=80',
+        fullContent: 'https://google.com',
+        featured: false,
+      ),
+      NewsItem(
+        id: '3',
+        title: 'Strategi Manajemen Risiko Trading Kalkulator di Pasar Volatil',
+        summary: 'Ketahui cara menghitung Position Sizing dan Stop Loss yang ideal sebelum mengeksekusi transaksi pasar.',
+        source: 'KIMPUL Edukasi',
+        timeAgo: '5 jam lalu',
+        readTime: '3 mnt baca',
+        category: 'TRADING',
+        tagType: 'TIPS',
+        imageUrl: 'https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?auto=format&fit=crop&w=600&q=80',
+        fullContent: 'https://google.com',
+        featured: false,
+      ),
+    ];
   }
 }
