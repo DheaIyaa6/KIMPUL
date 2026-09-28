@@ -11,7 +11,6 @@ class ProfileStorage {
   static const String _keyName = 'profile_name';
   static const String _keyEmail = 'profile_email';
 
-  // 🌟 MENGUNCI KEY FOTO PROFIL DENGAN EMAIL USER
   static String _getAvatarKey(String email) {
     final cleanEmail = email.trim().toLowerCase();
     return 'profile_avatar_path_$cleanEmail';
