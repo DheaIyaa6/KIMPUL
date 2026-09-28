@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 // Enum untuk navigasi tipe kalkulator
-enum CalcView { pivot, gold }
+enum CalcView { pivot, gold, nest }
 
 class CalcHubScreen extends StatelessWidget {
   final Function(CalcView view) onSelectCalc;
@@ -48,8 +48,6 @@ class CalcHubScreen extends StatelessWidget {
                     'Hitung level pivot harian, empat tingkat support (S1–S4), dan empat tingkat resistance (R1–R4) berdasarkan harga tertinggi, terendah, dan penutupan.',
                 icon: Icons.query_stats_rounded,
                 buttonText: 'Buka Kalkulator Pivot',
-                feature1: 'S/R 4 Tingkat',
-                feature2: 'Formula Baku Intraday',
                 primaryColor: primaryColor,
                 onTap: () => onSelectCalc(CalcView.pivot),
               ),
@@ -60,13 +58,24 @@ class CalcHubScreen extends StatelessWidget {
                 context,
                 title: 'Kalkulator Emas Fisik',
                 subtitle:
-                    'Simulasi perhitungan nilai emas fisik 24 Karat (Antam / UBS), berat gramatur, tarif PPh 22 NPWP, ongkos cetak kemasan CertiCard, dan estimasi buyback.',
+                    'Membantu menghitung estimasi nilai beli emas berdasarkan berat, kadar, dan harga saat ini, lengkap dengan rincian pajak, biaya cetak, serta estimasi buyback.',
                 icon: Icons.account_balance_wallet_rounded,
                 buttonText: 'Buka Kalkulator Emas Fisik',
-                feature1: 'Regulasi Pajak PMK',
-                feature2: 'Estimasi Spread Buyback',
                 primaryColor: primaryColor,
                 onTap: () => onSelectCalc(CalcView.gold),
+              ),
+              const SizedBox(height: 14),
+
+              // Card 3: Nest Calculator
+              _buildCalculatorCard(
+                context,
+                title: 'Nest Calculator',
+                subtitle:
+                    'Membantu menentukan aksi beli atau jual dengan konsep follow the trend, berdasarkan perbandingan harga penutupan (close) dan harga pembukaan (open).',
+                icon: Icons.trending_up_rounded,
+                buttonText: 'Buka Kalkulator Nest',
+                primaryColor: primaryColor,
+                onTap: () => onSelectCalc(CalcView.nest),
               ),
             ],
           ),
@@ -136,8 +145,6 @@ class CalcHubScreen extends StatelessWidget {
     required String subtitle,
     required IconData icon,
     required String buttonText,
-    required String feature1,
-    required String feature2,
     required Color primaryColor,
     required VoidCallback onTap,
   }) {
@@ -158,7 +165,7 @@ class CalcHubScreen extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Top Header Row (Icon & Judul - badge dihapus, judul dipindah ke sini)
+          // Top Header Row (Icon & Judul)
           Row(
             mainAxisAlignment: MainAxisAlignment.start,
             crossAxisAlignment: CrossAxisAlignment.center,
@@ -199,54 +206,6 @@ class CalcHubScreen extends StatelessWidget {
               color: Color(0xFF64748B),
               height: 1.4,
             ),
-          ),
-          const SizedBox(height: 12),
-
-          // Feature Checks
-          Row(
-            children: [
-              Row(
-                children: [
-                  const Icon(
-                    Icons.check_rounded,
-                    size: 15,
-                    color: Color(0xFF059669),
-                  ),
-                  const SizedBox(width: 4),
-                  Text(
-                    feature1,
-                    style: const TextStyle(
-                      fontSize: 11.5,
-                      color: Color(0xFF64748B),
-                    ),
-                  ),
-                ],
-              ),
-              const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 8),
-                child: Text(
-                  '•',
-                  style: TextStyle(color: Color(0xFF64748B)),
-                ),
-              ),
-              Row(
-                children: [
-                  const Icon(
-                    Icons.check_rounded,
-                    size: 15,
-                    color: Color(0xFF059669),
-                  ),
-                  const SizedBox(width: 4),
-                  Text(
-                    feature2,
-                    style: const TextStyle(
-                      fontSize: 11.5,
-                      color: Color(0xFF64748B),
-                    ),
-                  ),
-                ],
-              ),
-            ],
           ),
           const SizedBox(height: 14),
 

@@ -667,6 +667,114 @@ class _PivotCalculatorState extends State<PivotCalculator> {
               ],
             ),
           ),
+          const SizedBox(height: 12),
+
+          // SECTION 4: KONSEP TRANSAKSI
+          _buildKonsepTransaksi(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildKonsepTransaksi() {
+    const buyColor = Color(0xFF059669);
+    const sellColor = Color(0xFFE11D48);
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Konsep Transaksi',
+            style: TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.bold,
+              color: Color(0xFF0F172A),
+            ),
+          ),
+          const SizedBox(height: 12),
+          _buildConceptItem(
+            title: 'Pivot Point',
+            description:
+                'Harga wajar atau harga pasaran untuk menentukan aksi beli dan jual, mengacu pada harga pembukaan (open).',
+            rules: [
+              _buildRuleRow('Open < Pivot Point', 'BUY', buyColor),
+              _buildRuleRow('Open > Pivot Point', 'SELL', sellColor),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildConceptItem({
+    required String title,
+    required String description,
+    required List<Widget> rules,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: const TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.bold,
+            color: Color(0xFF0F172A),
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          description,
+          style: const TextStyle(
+            fontSize: 12.5,
+            color: Color(0xFF64748B),
+            height: 1.4,
+          ),
+        ),
+        const SizedBox(height: 4),
+        ...rules,
+      ],
+    );
+  }
+
+  Widget _buildRuleRow(String condition, String action, Color color) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 6),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              condition,
+              style: const TextStyle(
+                fontSize: 12.5,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFF334155),
+              ),
+            ),
+          ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Text(
+              action,
+              style: TextStyle(
+                fontSize: 11.5,
+                fontWeight: FontWeight.bold,
+                color: color,
+              ),
+            ),
+          ),
         ],
       ),
     );
