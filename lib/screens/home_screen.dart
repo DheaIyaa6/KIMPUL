@@ -11,6 +11,7 @@ import 'package:kimpul/screens/header_screen.dart';
 import 'package:kimpul/screens/history_screen.dart';
 import 'package:kimpul/screens/login_screen.dart';
 import 'package:kimpul/screens/modals_screen.dart';
+import 'package:kimpul/screens/nest_calculator.dart';
 import 'package:kimpul/screens/news_screen.dart';
 import 'package:kimpul/screens/pivot_calculator.dart';
 import 'package:kimpul/screens/profile_screen.dart';
@@ -1136,6 +1137,14 @@ class _HomeScreenState extends State<HomeScreen> {
           );
         },
         onOpenDetailModal: (calc) {},
+      );
+    } else if (_selectedCalcView == CalcView.nest) {
+      return NestCalculator(
+        onBack: () {
+          setState(() {
+            _selectedCalcView = null;
+          });
+        },
       );
     } else {
       return CalcHubScreen(
