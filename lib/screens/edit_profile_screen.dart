@@ -145,20 +145,25 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       final String newName = _nameController.text.trim();
       String persistedAvatarPath = widget.user.avatarUrl;
 
-      // 1. Simpan foto ke penyimpanan lokal perangkat jika ada foto baru
+      // 1. Simpan foto ke penyimpanan lokal HP terikat email
       if (_selectedImageFile != null) {
-        final copiedPath =
-            await ProfileStorage.persistPickedImage(_selectedImageFile!);
+        final copiedPath = await ProfileStorage.persistPickedImage(
+          _selectedImageFile!,
+          email: widget.user.email,
+        );
         if (copiedPath != null) {
           persistedAvatarPath = copiedPath;
         }
       }
 
-      // 2. Perbarui Display Name di akun Firebase Auth
+      // 2. Perbarui Display Name & Photo URL di Firebase Auth User
       final User? firebaseUser = FirebaseAuth.instance.currentUser;
       if (firebaseUser != null) {
         if (newName != firebaseUser.displayName) {
           await firebaseUser.updateDisplayName(newName);
+        }
+        if (persistedAvatarPath.isNotEmpty) {
+          await firebaseUser.updatePhotoURL(persistedAvatarPath);
         }
         await firebaseUser.reload();
       }
@@ -174,7 +179,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         branch: widget.user.branch,
       );
 
-      // 4. Simpan ke local storage HP
+      // 4. Simpan ke local storage HP khusus terikat email ini
       await ProfileStorage.saveLoginProfile(
         name: updatedUser.name,
         email: updatedUser.email,
@@ -318,7 +323,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
               ),
               const SizedBox(height: 16),
 
-              // INPUT EMAIL (Read-Only dari Akun Terdaftar)
+              // INPUT EMAIL (Read-Only)
               _buildLabel('Email'),
               _buildTextField(
                 controller: _emailController,

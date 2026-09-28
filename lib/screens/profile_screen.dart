@@ -2,14 +2,20 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:kimpul/screens/modals_screen.dart';
-import 'package:kimpul/screens/edit_profile_screen.dart';
+import 'package:kimpul/screens/edit_profile_screen.dart'; 
 import 'package:kimpul/screens/change_password_screen.dart';
 
 class ProfileStorage {
   static const String _keyName = 'profile_name';
   static const String _keyEmail = 'profile_email';
-  static const String _keyAvatarPath = 'profile_avatar_path';
+
+  // 🌟 MENGUNCI KEY FOTO PROFIL DENGAN EMAIL USER
+  static String _getAvatarKey(String email) {
+    final cleanEmail = email.trim().toLowerCase();
+    return 'profile_avatar_path_$cleanEmail';
+  }
 
   static Future<void> saveLoginProfile({
     required String name,
@@ -21,7 +27,7 @@ class ProfileStorage {
     await prefs.setString(_keyEmail, email.trim());
 
     if (avatarPath != null && avatarPath.trim().isNotEmpty) {
-      await prefs.setString(_keyAvatarPath, avatarPath.trim());
+      await prefs.setString(_getAvatarKey(email), avatarPath.trim());
     }
   }
 
@@ -30,9 +36,19 @@ class ProfileStorage {
     String fallbackEmail = '',
   }) async {
     final prefs = await SharedPreferences.getInstance();
-    final savedName = prefs.getString(_keyName) ?? fallbackName;
-    final savedEmail = prefs.getString(_keyEmail) ?? fallbackEmail;
-    final savedAvatar = prefs.getString(_keyAvatarPath) ?? '';
+    final User? firebaseUser = FirebaseAuth.instance.currentUser;
+
+    final String savedEmail =
+        firebaseUser?.email ?? prefs.getString(_keyEmail) ?? fallbackEmail;
+    final String savedName = firebaseUser?.displayName ??
+        prefs.getString(_keyName) ??
+        fallbackName;
+
+    // Ambil foto dari SharedPreferences khusus email ini, atau dari photoURL Firebase
+    String savedAvatar = prefs.getString(_getAvatarKey(savedEmail)) ?? '';
+    if (savedAvatar.isEmpty && firebaseUser?.photoURL != null) {
+      savedAvatar = firebaseUser!.photoURL!;
+    }
 
     return UserProfile(
       name: savedName,
@@ -41,24 +57,33 @@ class ProfileStorage {
     );
   }
 
-  static Future<void> saveAvatarPath(String? path) async {
+  static Future<void> saveAvatarPath(String email, String? path) async {
     if (path == null || path.trim().isEmpty) return;
 
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_keyAvatarPath, path.trim());
+    await prefs.setString(_getAvatarKey(email), path.trim());
   }
 
-  static Future<String> getSavedAvatarPath() async {
+  static Future<String> getSavedAvatarPath(String email) async {
     final prefs = await SharedPreferences.getInstance();
-    return prefs.getString(_keyAvatarPath) ?? '';
+    final User? firebaseUser = FirebaseAuth.instance.currentUser;
+
+    final localPath = prefs.getString(_getAvatarKey(email)) ?? '';
+    if (localPath.isNotEmpty) return localPath;
+
+    return firebaseUser?.photoURL ?? '';
   }
 
-  static Future<String?> persistPickedImage(File sourceFile) async {
+  static Future<String?> persistPickedImage(File sourceFile, {String? email}) async {
     try {
       final directory = await getApplicationDocumentsDirectory();
       final fileName = 'profile_${DateTime.now().millisecondsSinceEpoch}.jpg';
       final destination = await sourceFile.copy('${directory.path}/$fileName');
-      await saveAvatarPath(destination.path);
+
+      final userEmail = email ?? FirebaseAuth.instance.currentUser?.email ?? '';
+      if (userEmail.isNotEmpty) {
+        await saveAvatarPath(userEmail, destination.path);
+      }
       return destination.path;
     } catch (_) {
       return null;
@@ -80,7 +105,7 @@ class UserProfile {
     required this.name,
     required this.email,
     this.phone = '',
-    this.avatarUrl = '', // Berisi nama file foto dari DB MySQL (misal: "profile_1_1726000000.jpg")
+    this.avatarUrl = '',
     this.clientCode = 'KMP-8892',
     this.accountNumber = '9928102831',
     this.branch = 'Surabaya, Indonesia',
@@ -123,6 +148,29 @@ class _ProfileScreenState extends State<ProfileScreen> {
   void initState() {
     super.initState();
     _currentUser = widget.user;
+    _loadStoredAvatarOnStart();
+  }
+
+  // 🌟 MUAT FOTO TERSIMPAN SAAT HALAMAN DIBUKA / SETELAH LOGOUT-LOGIN
+  Future<void> _loadStoredAvatarOnStart() async {
+    final savedProfile = await ProfileStorage.loadSavedProfile(
+      fallbackName: widget.user.name,
+      fallbackEmail: widget.user.email,
+    );
+
+    if (mounted && savedProfile.avatarUrl.isNotEmpty) {
+      setState(() {
+        _currentUser = UserProfile(
+          name: savedProfile.name,
+          email: savedProfile.email,
+          phone: _currentUser.phone,
+          avatarUrl: savedProfile.avatarUrl,
+          clientCode: _currentUser.clientCode,
+          accountNumber: _currentUser.accountNumber,
+          branch: _currentUser.branch,
+        );
+      });
+    }
   }
 
   // Navigasi ke Halaman Edit Profil
@@ -155,7 +203,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  // 🌟 HELPER FOTO: Menentukan ImageProvider yang tepat (Server Laragon vs File HP vs Null/Icon)
+  // 🌟 HELPER FOTO: Menentukan ImageProvider yang tepat
   ImageProvider? _getAvatarProvider(String path) {
     final cleanPath = path.trim();
 
@@ -166,7 +214,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     // 2. Jika berupa path file lokal dari galeri/kamera HP pengguna
     if (cleanPath.startsWith('/') || cleanPath.startsWith('file://') || cleanPath.contains(':\\')) {
-      final file = File(cleanPath);
+      final file = File(cleanPath.replaceFirst('file://', ''));
       if (file.existsSync()) {
         return FileImage(file);
       }
@@ -178,7 +226,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
 
     // 4. Jika hanya berupa nama file dari DB MySQL (misal: "profile_1_1726000000.jpg")
-    // Ambil file foto langsung dari folder uploads Laragon
     final serverImageUrl = '$_serverBaseUrl/$cleanPath?v=${DateTime.now().millisecondsSinceEpoch}';
     return NetworkImage(serverImageUrl);
   }

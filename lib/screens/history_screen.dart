@@ -737,7 +737,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
     required IconData icon,
   }) {
     final bool hasLink = (item.link ?? '').trim().isNotEmpty;
-    final String displayTitle = item.title ?? item.pair ?? 'Riwayat ${title}';
+    final String displayTitle = item.title ?? item.pair ?? 'Riwayat $title';
     final String displayText = item.description ?? 'Data ${title.toLowerCase()} tersimpan pada riwayat ini.';
 
     return InkWell(
