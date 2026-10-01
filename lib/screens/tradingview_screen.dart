@@ -2,7 +2,17 @@ import 'package:flutter/material.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
 class TradingViewScreen extends StatefulWidget {
-  const TradingViewScreen({super.key});
+  /// Simbol TradingView, contoh: 'OANDA:XAUUSD', 'INDEX:HSI', 'OANDA:USDJPY'
+  final String symbol;
+
+  /// Judul singkat yang tampil di AppBar, contoh: 'XAUUSD', 'HSI'
+  final String title;
+
+  const TradingViewScreen({
+    super.key,
+    this.symbol = 'OANDA:XAUUSD',
+    this.title = 'XAU/USD',
+  });
 
   @override
   State<TradingViewScreen> createState() => _TradingViewScreenState();
@@ -16,7 +26,7 @@ class _TradingViewScreenState extends State<TradingViewScreen> {
   void initState() {
     super.initState();
 
-    // HTML wrapper untuk memuat widget Chart TradingView Interaktif Emas (XAUUSD)
+    // HTML wrapper untuk memuat widget Chart TradingView Interaktif
     final String htmlContent = '''
       <!DOCTYPE html>
       <html>
@@ -35,18 +45,17 @@ class _TradingViewScreenState extends State<TradingViewScreen> {
           <script type="text/javascript">
             new TradingView.widget({
               "autosize": true,
-              "symbol": "OANDA:XAUUSD",
+              "symbol": "${widget.symbol}",
               "interval": "60",
               "timezone": "Asia/Jakarta",
               "theme": "dark",
-              "style": "1", // Candlestick Style
+              "style": "1",
               "locale": "id",
               "toolbar_bg": "#f1f3f6",
               "enable_publishing": false,
               "hide_side_toolbar": false,
               "allow_symbol_change": true,
               "container_id": "tradingview_chart",
-              // Menampilkan Indikator Pivot Points Standard (R1, R2, R3 & S1, S2, S3)
               "studies": [
                 "STD;Pivot%1Points%1Standard"
               ]
@@ -79,9 +88,9 @@ class _TradingViewScreenState extends State<TradingViewScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFF131722),
       appBar: AppBar(
-        title: const Text(
-          'Grafik Interaktif XAU/USD',
-          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+        title: Text(
+          'Grafik Interaktif ${widget.title}',
+          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
         ),
         backgroundColor: const Color(0xFF131722),
         foregroundColor: Colors.white,

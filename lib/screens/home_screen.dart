@@ -2,7 +2,6 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'package:webview_flutter/webview_flutter.dart';
 
 import 'package:kimpul/services/api_service.dart';
 import 'package:kimpul/screens/calculatorhub_screen.dart';
@@ -10,12 +9,12 @@ import 'package:kimpul/screens/gold_calculator.dart';
 import 'package:kimpul/screens/header_screen.dart';
 import 'package:kimpul/screens/history_screen.dart';
 import 'package:kimpul/screens/login_screen.dart';
+import 'package:kimpul/screens/market_overview_screen.dart';
 import 'package:kimpul/screens/modals_screen.dart';
 import 'package:kimpul/screens/nest_calculator.dart';
 import 'package:kimpul/screens/news_screen.dart';
 import 'package:kimpul/screens/pivot_calculator.dart';
 import 'package:kimpul/screens/profile_screen.dart';
-import 'package:kimpul/screens/tradingview_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   final String userName;
@@ -36,9 +35,6 @@ class _HomeScreenState extends State<HomeScreen> {
 
   // Warna Primary Pink KIMPUL
   static const primaryPink = Color(0xFFE93A56);
-
-  // Controller WebView Mini Chart
-  late WebViewController _miniChartController;
 
   // Timer & Waktu Real-time
   late Timer _timer;
@@ -123,23 +119,6 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
-  // Pengecekan Status Aktif Pasar
-  bool _isMarketActive() {
-    final now = DateTime.now().toUtc();
-    final weekday = now.weekday;
-    final hour = now.hour;
-
-    if (weekday == DateTime.saturday) return false;
-    if (weekday == DateTime.sunday && hour < 22) return false;
-    if (weekday == DateTime.friday && hour >= 21) return false;
-
-    if (hour == 21) {
-      return false;
-    }
-
-    return true;
-  }
-
   Future<void> _openNewsLink(NewsItem news) async {
     final rawUrl = news.fullContent.trim();
     final uri = Uri.tryParse(rawUrl);
@@ -195,8 +174,6 @@ class _HomeScreenState extends State<HomeScreen> {
       avatarUrl: '',
     );
 
-    _initMiniChartWidget();
-
     // Inisialisasi Waktu Real-time
     _currentTime = DateTime.now();
     _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
@@ -235,47 +212,6 @@ class _HomeScreenState extends State<HomeScreen> {
     super.dispose();
   }
 
-  void _initMiniChartWidget() {
-    final String miniChartHtml = '''
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-        <style>
-          * { margin: 0; padding: 0; box-sizing: border-box; }
-          body, html { height: 100%; width: 100%; overflow: hidden; background-color: transparent; }
-          .tradingview-widget-container { height: 100%; width: 100%; }
-        </style>
-      </head>
-      <body>
-        <div class="tradingview-widget-container">
-          <div class="tradingview-widget-container__widget"></div>
-          <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-mini-symbol-overview.js" async>
-          {
-            "symbol": "OANDA:XAUUSD",
-            "width": "100%",
-            "height": "100%",
-            "locale": "id",
-            "dateRange": "1D",
-            "colorTheme": "light",
-            "trendLineColor": "rgba(233, 58, 86, 1)",
-            "underLineColor": "rgba(233, 58, 86, 0.12)",
-            "isTransparent": true,
-            "autosize": true,
-            "largeChartUrl": ""
-          }
-          </script>
-        </div>
-      </body>
-      </html>
-    ''';
-
-    _miniChartController = WebViewController()
-      ..setJavaScriptMode(JavaScriptMode.unrestricted)
-      ..setBackgroundColor(Colors.transparent)
-      ..loadHtmlString(miniChartHtml);
-  }
-
   void _onTabTapped(int index) {
     setState(() {
       _selectedIndex = index;
@@ -285,8 +221,6 @@ class _HomeScreenState extends State<HomeScreen> {
 
   // Tab 0: Beranda
   Widget _buildHomeTab() {
-    final bool marketActive = _isMarketActive();
-
     String formattedDate = DateFormat('EEEE, d MMMM yyyy', 'id_ID').format(_currentTime);
     String formattedTime = DateFormat('HH:mm:ss', 'id_ID').format(_currentTime);
 
@@ -590,7 +524,7 @@ class _HomeScreenState extends State<HomeScreen> {
           ],
           const SizedBox(height: 20),
 
-          // Market Hero Card: Gold Spot
+          // Card: Grafik Pasar (ringkasan XAUUSD, Hang Seng, USDJPY)
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
@@ -609,7 +543,7 @@ class _HomeScreenState extends State<HomeScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
-                  crossAxisAlignment: CrossAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Container(
                       width: 38,
@@ -619,7 +553,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         borderRadius: BorderRadius.circular(10),
                       ),
                       child: const Icon(
-                        Icons.monetization_on_rounded,
+                        Icons.bar_chart_rounded,
                         color: Colors.white,
                         size: 20,
                       ),
@@ -630,114 +564,63 @@ class _HomeScreenState extends State<HomeScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: const [
                           Text(
-                            'XAU / USD Loco London',
+                            'Grafik Pasar',
                             style: TextStyle(
-                              fontSize: 13.5,
+                              fontSize: 15,
                               fontWeight: FontWeight.bold,
                               color: Color(0xFF0F172A),
                             ),
                           ),
+                          SizedBox(height: 2),
                           Text(
-                            'Spot Gold Kontrak Fisik',
+                            'Pantau pergerakan XAUUSD, Hang Seng, dan USDJPY secara real-time melalui TradingView.',
                             style: TextStyle(
-                              fontSize: 11,
+                              fontSize: 11.5,
                               color: Color(0xFF515F74),
+                              height: 1.4,
                             ),
                           ),
                         ],
                       ),
                     ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFF8FAFC),
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: const Color(0xFFE2E8F0)),
-                      ),
-                      child: Row(
-                        children: [
-                          Container(
-                            width: 8,
-                            height: 8,
-                            decoration: BoxDecoration(
-                              color: marketActive ? const Color(0xFF10B981) : primaryPink,
-                              shape: BoxShape.circle,
-                            ),
-                          ),
-                          const SizedBox(width: 6),
-                          Text(
-                            marketActive ? 'Pasar Aktif' : 'Pasar Tutup',
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w600,
-                              color: marketActive ? const Color(0xFF059669) : primaryPink,
-                            ),
-                          ),
-                        ],
-                      ),
+                    Icon(
+                      Icons.trending_up_rounded,
+                      color: primaryPink.withValues(alpha: 0.35),
+                      size: 30,
                     ),
                   ],
                 ),
                 const SizedBox(height: 16),
-                Container(
+                SizedBox(
                   width: double.infinity,
-                  height: 200,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFF8FAFC),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: const Color(0xFFE2E8F0)),
-                  ),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(12),
-                    child: IgnorePointer(
-                      ignoring: true,
-                      child: WebViewWidget(controller: _miniChartController),
+                  child: ElevatedButton.icon(
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const MarketOverviewScreen(),
+                        ),
+                      );
+                    },
+                    icon: const Icon(Icons.bar_chart_rounded,
+                        size: 20, color: Colors.white),
+                    label: const Text('Buka Grafik TradingView'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: primaryPink,
+                      foregroundColor: Colors.white,
+                      elevation: 0,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      textStyle: const TextStyle(
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ),
-                ),
-                const SizedBox(height: 16),
-                const Divider(color: Color(0xFFF1F5F9), height: 1),
-                const SizedBox(height: 12),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceAround,
-                  children: [
-                    _buildMetricItem('Tertinggi 24j', '\$2,352.10'),
-                    _buildMetricItem('Terendah 24j', '\$2,328.40'),
-                    _buildMetricItem('Kurs Acuan', 'Rp 16.240'),
-                  ],
                 ),
               ],
-            ),
-          ),
-          const SizedBox(height: 20),
-
-          // Tombol TradingView Full
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton.icon(
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const TradingViewScreen(),
-                  ),
-                );
-              },
-              icon: const Icon(Icons.candlestick_chart_rounded, size: 20, color: Colors.white),
-              label: const Text('Buka Grafik Interaktif TradingView'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: primaryPink,
-                foregroundColor: Colors.white,
-                elevation: 0,
-                padding: const EdgeInsets.symmetric(vertical: 14),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                textStyle: const TextStyle(
-                  fontSize: 13.5,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
             ),
           ),
           const SizedBox(height: 24),
@@ -1234,30 +1117,6 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ],
       ),
-    );
-  }
-
-  Widget _buildMetricItem(String label, String value) {
-    return Column(
-      children: [
-        Text(
-          label,
-          style: const TextStyle(
-            fontSize: 11,
-            color: Color(0xFF64748B),
-            fontWeight: FontWeight.w500,
-          ),
-        ),
-        const SizedBox(height: 2),
-        Text(
-          value,
-          style: const TextStyle(
-            fontSize: 13.5,
-            fontWeight: FontWeight.bold,
-            color: Color(0xFF0F172A),
-          ),
-        ),
-      ],
     );
   }
 }
