@@ -3,11 +3,15 @@ import 'package:kimpul/services/api_service.dart';
 
 class NewsScreen extends StatefulWidget {
   final List<NewsItem> newsItems;
+  final bool isLoading;
+  final Future<void> Function() onRefresh;
   final Function(NewsItem news) onOpenNewsDetail;
 
   const NewsScreen({
     super.key,
     required this.newsItems,
+    required this.isLoading,
+    required this.onRefresh,
     required this.onOpenNewsDetail,
   });
 
@@ -18,13 +22,9 @@ class NewsScreen extends StatefulWidget {
 class _NewsScreenState extends State<NewsScreen> {
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
-  int _loadedCount = 10; // 🌟 Memuat 10 Berita awal
+  int _loadedCount = 10;
   bool _isLoadingMore = false;
   bool _isRefreshing = false;
-  bool _isLoadingLive = true;
-
-  // List internal untuk menampung berita Live
-  List<NewsItem> _liveNewsItems = [];
 
   @override
   void initState() {
@@ -34,13 +34,6 @@ class _NewsScreenState extends State<NewsScreen> {
         _searchQuery = _searchController.text;
       });
     });
-
-    if (widget.newsItems.isNotEmpty) {
-      _liveNewsItems = widget.newsItems;
-      _isLoadingLive = false;
-    } else {
-      _fetchLiveNews();
-    }
   }
 
   @override
@@ -49,33 +42,8 @@ class _NewsScreenState extends State<NewsScreen> {
     super.dispose();
   }
 
-  Future<void> _fetchLiveNews() async {
-    try {
-      final fetchedItems = await ApiService.getTradingViewNews();
-
-      if (mounted) {
-        setState(() {
-          if (fetchedItems.isNotEmpty) {
-            _liveNewsItems = fetchedItems;
-          } else {
-            _liveNewsItems = widget.newsItems;
-          }
-          _isLoadingLive = false;
-        });
-      }
-    } catch (_) {
-      if (mounted) {
-        setState(() {
-          _liveNewsItems = widget.newsItems;
-          _isLoadingLive = false;
-        });
-      }
-    }
-  }
-
-  List<NewsItem> get _activeNewsList {
-    return _liveNewsItems.isNotEmpty ? _liveNewsItems : widget.newsItems;
-  }
+  // Data sekarang SELALU dari Home (satu sumber data)
+  List<NewsItem> get _activeNewsList => widget.newsItems;
 
   List<NewsItem> get _filteredNews {
     return _activeNewsList.where((item) {
@@ -112,7 +80,7 @@ class _NewsScreenState extends State<NewsScreen> {
       _isRefreshing = true;
     });
 
-    await _fetchLiveNews();
+    await widget.onRefresh();
 
     if (mounted) {
       setState(() {
@@ -191,7 +159,7 @@ class _NewsScreenState extends State<NewsScreen> {
                 children: [
                   IconButton(
                     onPressed: _isRefreshing ? null : _handleRefresh,
-                    icon: _isRefreshing || _isLoadingLive
+                    icon: _isRefreshing || widget.isLoading
                         ? const SizedBox(
                             width: 15,
                             height: 15,
@@ -299,11 +267,22 @@ class _NewsScreenState extends State<NewsScreen> {
 
           const SizedBox(height: 16),
 
-          if (_isLoadingLive) ...[
+          if (widget.isLoading && widget.newsItems.isEmpty) ...[
             const Padding(
               padding: EdgeInsets.symmetric(vertical: 32),
               child: Center(
                 child: CircularProgressIndicator(),
+              ),
+            ),
+          ] else if (widget.newsItems.isEmpty) ...[
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 32),
+              child: Center(
+                child: Text(
+                  'Gagal memuat berita. Tekan tombol refresh untuk coba lagi.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 13, color: Color(0xFF515F74)),
+                ),
               ),
             ),
           ] else ...[

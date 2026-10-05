@@ -43,6 +43,7 @@ class _HomeScreenState extends State<HomeScreen> {
   // Controller & Timer Slider Berita Auto-Slide
   late PageController _newsPageController;
   Timer? _newsTimer;
+  Timer? _newsRefreshTimer;
   int _currentNewsPage = 0;
 
   // State navigasi internal di tab Kalkulator
@@ -74,18 +75,21 @@ class _HomeScreenState extends State<HomeScreen> {
   late UserProfile _userProfile;
 
   // FUNGSI FETCH LIVE NEWS VIA API SERVICE
-  Future<void> _fetchLiveNews() async {
+    Future<void> _fetchLiveNews() async {
     try {
       final fetchedItems = await ApiService.getTradingViewNews();
+      if (!mounted) return;
 
-      if (mounted) {
-        setState(() {
+      setState(() {
+        // Kalau refresh gagal (kosong), jangan timpa berita lama
+        if (fetchedItems.isNotEmpty) {
           _liveNewsItems = fetchedItems;
-          _isLoadingLiveNews = false;
-        });
-        if (_liveNewsItems.isNotEmpty) {
-          _startNewsAutoSlide();
         }
+        _isLoadingLiveNews = false;
+      });
+
+      if (_liveNewsItems.isNotEmpty) {
+        _startNewsAutoSlide();
       }
     } catch (_) {
       if (mounted) {
@@ -170,8 +174,14 @@ class _HomeScreenState extends State<HomeScreen> {
 
     _newsPageController = PageController(initialPage: 0);
 
-    // Fetch Berita Live saat Pertama Dimuat
+        // Fetch Berita Live saat Pertama Dimuat
     _fetchLiveNews();
+
+    // Refresh berita otomatis tiap 5 menit
+    _newsRefreshTimer = Timer.periodic(
+      const Duration(minutes: 5),
+      (_) => _fetchLiveNews(),
+    );
   }
 
   @override
@@ -192,6 +202,7 @@ class _HomeScreenState extends State<HomeScreen> {
   void dispose() {
     _timer.cancel();
     _newsTimer?.cancel();
+    _newsRefreshTimer?.cancel();
     _newsPageController.dispose();
     super.dispose();
   }
@@ -1021,6 +1032,8 @@ class _HomeScreenState extends State<HomeScreen> {
       _buildHomeTab(),
       NewsScreen(
         newsItems: _liveNewsItems,
+        isLoading: _isLoadingLiveNews,
+        onRefresh: _fetchLiveNews,
         onOpenNewsDetail: _openNewsDetail,
       ),
       _buildCalculatorTab(),

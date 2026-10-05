@@ -1,8 +1,9 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:xml/xml.dart' as xml;
 
-/// Model NewsItem untuk Menampilkan Berita Pasar & Komoditas di App
 class NewsItem {
   final String id;
   final String title;
@@ -31,191 +32,276 @@ class NewsItem {
   });
 }
 
+class _Feed {
+  final String source; // label default (Google News akan diganti nama penerbit asli)
+  final String url;
+  final String category;
+  final bool filter; // true = wajib lolos filter keyword relevansi
+  final bool isGoogle;
+  const _Feed(this.source, this.url, this.category,
+      {this.filter = true, this.isGoogle = false});
+}
+
 class ApiService {
-  // 🌟 DAFTAR RSS FEED RESMI EMAS, PASAR & MACRO (CNBC & REUTERS)
-  static const List<Map<String, String>> _rssFeeds = [
-    {
-      'source': 'CNBC Commodities & Gold',
-      'url': 'https://search.cnbc.com/rs/search/combinedondemand/rss?partnerId=wrss01&id=10000115',
-      'category': 'XAU/USD',
-    },
-    {
-      'source': 'CNBC World Economy',
-      'url': 'https://search.cnbc.com/rs/search/combinedondemand/rss?partnerId=wrss01&id=20910258',
-      'category': 'MACRO',
-    },
-    {
-      'source': 'CNBC Finance & Markets',
-      'url': 'https://search.cnbc.com/rs/search/combinedondemand/rss?partnerId=wrss01&id=10000664',
-      'category': 'FOREX',
-    },
+  // Feed yang gagal tidak menggagalkan feed lain.
+  static const List<_Feed> _feeds = [
+    _Feed(
+      'CNBC Finance',
+      'https://search.cnbc.com/rs/search/combinedcms/view.xml?partnerId=wrss01&id=10000664',
+      'FOREX',
+    ),
+    _Feed(
+      'CNBC Economy',
+      'https://search.cnbc.com/rs/search/combinedcms/view.xml?partnerId=wrss01&id=20910258',
+      'MACRO',
+    ),
+    _Feed(
+      'Bloomberg Markets',
+      'https://feeds.bloomberg.com/markets/news.rss',
+      'MARKETS',
+    ),
+    _Feed(
+      'Bloomberg Commodities',
+      'https://feeds.bloomberg.com/commodities/news.rss',
+      'XAU/USD',
+    ),
+    _Feed(
+      'CNBC Indonesia',
+      'https://www.cnbcindonesia.com/market/rss',
+      'EMAS',
+    ),
+    // Google News RSS: sudah difilter query & umur berita (2 hari)
+    _Feed(
+      'Google News',
+      'https://news.google.com/rss/search?q=gold+price+OR+XAUUSD+OR+%22gold+futures%22+when:2d&hl=en-US&gl=US&ceid=US:en',
+      'XAU/USD',
+      filter: false,
+      isGoogle: true,
+    ),
+    _Feed(
+      'Reuters',
+      'https://news.google.com/rss/search?q=site:reuters.com+(gold+OR+dollar+OR+Fed+OR+inflation)+when:2d&hl=en-US&gl=US&ceid=US:en',
+      'MACRO',
+      filter: false,
+      isGoogle: true,
+    ),
   ];
 
-  /// 🌟 FUNGSI: Ambil Berita Live Emas & Pasar dengan Safe Parsing
-  static Future<List<NewsItem>> getTradingViewNews() async {
-    final List<NewsItem> fetchedNews = [];
-    int itemCounter = 0;
+  static const _keywords = [
+    'gold', 'xau', 'bullion', 'precious metal', 'silver', 'fed ', 'federal reserve',
+    'fomc', 'powell', 'interest rate', 'rate cut', 'rate hike', 'inflation', 'cpi',
+    'nonfarm', 'payroll', 'treasury', 'yield', 'dollar', 'dxy', 'forex', 'safe-haven',
+    'safe haven', 'commodit', 'oil', 'central bank', 'tariff', 'recession',
+    'emas', 'suku bunga', 'inflasi', 'rupiah', 'dolar', 'komoditas', 'bank sentral',
+  ];
 
-    for (final feed in _rssFeeds) {
-      try {
-        final response = await http
-            .get(Uri.parse(feed['url']!))
-            .timeout(const Duration(seconds: 6));
+  static const Duration _maxAge = Duration(days: 3);
 
-        if (response.statusCode == 200) {
-          final rawXml = response.body;
-          final document = xml.XmlDocument.parse(rawXml);
-          final items = document.findAllElements('item');
+  static const String _defaultImage =
+      'https://images.unsplash.com/photo-1610375461246-83df859d849d?auto=format&fit=crop&w=600&q=80';
 
-          for (final item in items) {
-            try {
-              // Safe Extraction nilai elemen XML
-              final titleElement = item.findElements('title').firstOrNull;
-              final linkElement = item.findElements('link').firstOrNull;
-              final descElement = item.findElements('description').firstOrNull;
-              final pubDateElement = item.findElements('pubDate').firstOrNull;
+  static const Map<String, int> _months = {
+    'Jan': 1, 'Feb': 2, 'Mar': 3, 'Apr': 4, 'May': 5, 'Jun': 6,
+    'Jul': 7, 'Aug': 8, 'Sep': 9, 'Oct': 10, 'Nov': 11, 'Dec': 12,
+  };
 
-              final String title = titleElement?.value ?? titleElement?.innerText ?? '';
-              final String link = linkElement?.value ?? linkElement?.innerText ?? '';
-              final String description = descElement?.value ?? descElement?.innerText ?? '';
-              final String pubDateStr = pubDateElement?.value ?? pubDateElement?.innerText ?? '';
+  static DateTime? _parseRssDate(String s) {
+    final m = RegExp(
+      r'(\d{1,2})\s+([A-Za-z]{3})\s+(\d{4})\s+(\d{2}):(\d{2})(?::(\d{2}))?\s*([+-]\d{4})?',
+    ).firstMatch(s);
+    if (m == null) return DateTime.tryParse(s)?.toUtc();
+    final month = _months[m.group(2)!];
+    if (month == null) return null;
 
-              if (title.trim().isEmpty || link.trim().isEmpty) continue;
-
-              // Filter topik irrelevant jika ada
-              final lowerTitle = title.toLowerCase();
-              if (lowerTitle.contains('divorce') ||
-                  lowerTitle.contains('probate') ||
-                  lowerTitle.contains('executor')) {
-                continue;
-              }
-
-              // Bersihkan Tag HTML dari deskripsi
-              final cleanSummary = description
-                  .replaceAll(RegExp(r'<[^>]*>|&nbsp;'), ' ')
-                  .replaceAll(RegExp(r'\s+'), ' ')
-                  .trim();
-
-              // Ekstrak Gambar dari tag enclosure/media
-              String imageUrl =
-                  'https://images.unsplash.com/photo-1610375461246-83df859d849d?auto=format&fit=crop&w=600&q=80';
-              final enclosure = item.findElements('enclosure').firstOrNull;
-              if (enclosure != null && enclosure.getAttribute('url') != null) {
-                imageUrl = enclosure.getAttribute('url')!;
-              }
-
-              // Format Waktu Terbit
-              String timeAgo = 'Terbaru';
-              if (pubDateStr.isNotEmpty) {
-                try {
-                  final pubDate = DateTime.parse(pubDateStr);
-                  final diff = DateTime.now().difference(pubDate);
-                  if (diff.inMinutes < 60) {
-                    timeAgo = '${diff.inMinutes} mnt lalu';
-                  } else if (diff.inHours < 24) {
-                    timeAgo = '${diff.inHours} jam lalu';
-                  } else {
-                    timeAgo = '${diff.inDays} hari lalu';
-                  }
-                } catch (_) {}
-              }
-
-              fetchedNews.add(
-                NewsItem(
-                  id: 'rss-$itemCounter-${DateTime.now().millisecondsSinceEpoch}',
-                  title: title.trim(),
-                  summary: cleanSummary.isNotEmpty
-                      ? (cleanSummary.length > 130
-                          ? '${cleanSummary.substring(0, 130)}...'
-                          : cleanSummary)
-                      : 'Klik Baca Full untuk membaca artikel berita lengkap di ${feed['source']}...',
-                  source: feed['source']!,
-                  timeAgo: timeAgo,
-                  readTime: '3 mnt baca',
-                  category: feed['category']!,
-                  tagType: 'LIVE',
-                  imageUrl: imageUrl,
-                  fullContent: link.trim(), // Link asli menuju artikel spesifik
-                  featured: itemCounter == 0,
-                ),
-              );
-
-              itemCounter++;
-              if (itemCounter >= 18) break;
-            } catch (e) {
-              // Jika 1 elemen bermasalah, lewati ke elemen berikutnya tanpa membuat crash
-              continue;
-            }
-          }
-        }
-      } catch (e) {
-        debugPrint("Error fetching RSS ${feed['source']}: $e");
-      }
+    var dt = DateTime.utc(
+      int.parse(m.group(3)!),
+      month,
+      int.parse(m.group(1)!),
+      int.parse(m.group(4)!),
+      int.parse(m.group(5)!),
+      int.parse(m.group(6) ?? '0'),
+    );
+    final tz = m.group(7);
+    if (tz != null) {
+      final sign = tz.startsWith('-') ? -1 : 1;
+      final h = int.parse(tz.substring(1, 3));
+      final mn = int.parse(tz.substring(3, 5));
+      dt = dt.subtract(Duration(minutes: sign * (h * 60 + mn)));
     }
-
-    if (fetchedNews.isNotEmpty) {
-      return fetchedNews;
-    }
-
-    // Jika terjadi masalah jaringan, tampilkan berita cadangan dengan link berita spesifik
-    return _getFallbackNews();
+    return dt;
   }
 
-  /// FALLBACK BERITA EMAS & KEUANGAN
-  static List<NewsItem> _getFallbackNews() {
+  static String _timeAgo(DateTime? published) {
+    if (published == null) return 'Terbaru';
+    final diff = DateTime.now().toUtc().difference(published);
+    if (diff.isNegative || diff.inMinutes < 1) return 'Baru saja';
+    if (diff.inMinutes < 60) return '${diff.inMinutes} mnt lalu';
+    if (diff.inHours < 24) return '${diff.inHours} jam lalu';
+    return '${diff.inDays} hari lalu';
+  }
+
+  static String _imageFrom(xml.XmlElement item) {
+    final enc = item.findElements('enclosure').firstOrNull?.getAttribute('url');
+    if (enc != null && enc.isNotEmpty) return enc;
+    for (final e in item.descendants.whereType<xml.XmlElement>()) {
+      final name = e.name.local;
+      if (name == 'thumbnail' || name == 'content') {
+        final u = e.getAttribute('url');
+        if (u != null && u.startsWith('http')) return u;
+      }
+    }
+    return _defaultImage;
+  }
+
+  static String _clean(String html) => html
+      .replaceAll(RegExp(r'<[^>]*>'), ' ')
+      .replaceAll('&nbsp;', ' ')
+      .replaceAll('&amp;', '&')
+      .replaceAll(RegExp(r'\s+'), ' ')
+      .trim();
+
+  static bool _isRelevant(String text) {
+    final t = ' ${text.toLowerCase()} ';
+    return _keywords.any(t.contains);
+  }
+
+  static Future<List<MapEntry<DateTime?, NewsItem>>> _fetchFeed(
+      _Feed feed, int feedIndex) async {
+    final result = <MapEntry<DateTime?, NewsItem>>[];
+    try {
+      final response = await http.get(
+        Uri.parse(feed.url),
+        headers: const {
+          'User-Agent':
+              'Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 Chrome/120 Mobile Safari/537.36',
+          'Accept': 'application/rss+xml, application/xml, text/xml, */*',
+        },
+      ).timeout(const Duration(seconds: 10));
+
+      if (response.statusCode != 200) {
+        debugPrint('RSS ${feed.source} GAGAL status ${response.statusCode}');
+        return result;
+      }
+
+      final document = xml.XmlDocument.parse(response.body);
+      var count = 0;
+
+      for (final item in document.findAllElements('item')) {
+        try {
+          var title = item.findElements('title').firstOrNull?.innerText.trim() ?? '';
+          final link = item.findElements('link').firstOrNull?.innerText.trim() ?? '';
+          final desc = item.findElements('description').firstOrNull?.innerText ?? '';
+          final pubStr = item.findElements('pubDate').firstOrNull?.innerText ?? '';
+          if (title.isEmpty || link.isEmpty) continue;
+
+          final published = _parseRssDate(pubStr);
+          // Buang berita basi
+          if (published != null &&
+              DateTime.now().toUtc().difference(published) > _maxAge) {
+            continue;
+          }
+
+          var sourceName = feed.source;
+          var summary = _clean(desc);
+
+          if (feed.isGoogle) {
+            // Judul Google News: "Judul - Penerbit"
+            final pub = item.findElements('source').firstOrNull?.innerText.trim();
+            final idx = title.lastIndexOf(' - ');
+            if (idx > 0) title = title.substring(0, idx).trim();
+            if (pub != null && pub.isNotEmpty) sourceName = pub;
+            // deskripsi Google hanya berisi link berulang, tidak berguna
+            summary = 'Dari $sourceName. Ketuk untuk membaca selengkapnya.';
+          }
+
+          final lower = title.toLowerCase();
+          if (lower.contains('divorce') ||
+              lower.contains('probate') ||
+              lower.contains('executor')) {
+            continue;
+          }
+
+          // Filter relevansi: hanya berita seputar emas/forex/makro
+          if (feed.filter && !_isRelevant('$title $summary')) continue;
+
+          result.add(MapEntry(
+            published,
+            NewsItem(
+              id: 'rss-$feedIndex-$count-${published?.millisecondsSinceEpoch ?? 0}',
+              title: title,
+              summary: summary.isEmpty
+                  ? 'Ketuk untuk membaca artikel lengkap di $sourceName.'
+                  : (summary.length > 130
+                      ? '${summary.substring(0, 130)}...'
+                      : summary),
+              source: sourceName,
+              timeAgo: _timeAgo(published),
+              readTime: '3 mnt baca',
+              category: feed.category,
+              tagType: 'LIVE',
+              imageUrl: _imageFrom(item),
+              fullContent: link,
+            ),
+          ));
+
+          count++;
+          if (count >= 10) break;
+        } catch (_) {
+          continue;
+        }
+      }
+      debugPrint('RSS ${feed.source}: $count berita lolos filter');
+    } catch (e) {
+      debugPrint('RSS ${feed.source} ERROR: $e');
+    }
+    return result;
+  }
+
+  /// Ambil berita live dari semua feed paralel.
+  /// Mengembalikan list KOSONG jika semua gagal (tanpa berita palsu).
+  static Future<List<NewsItem>> getTradingViewNews() async {
+    final results = await Future.wait(
+      List.generate(_feeds.length, (i) => _fetchFeed(_feeds[i], i)),
+    );
+
+    final all = results.expand((e) => e).toList();
+    if (all.isEmpty) {
+      debugPrint('Semua RSS gagal / tidak ada berita relevan');
+      return [];
+    }
+
+    // Hapus duplikat (judul sama persis setelah dinormalisasi)
+    final seen = <String>{};
+    final unique = all.where((e) {
+      final key = e.value.title.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '');
+      return seen.add(key);
+    }).toList();
+
+    // Terbaru di atas; tanpa tanggal di bawah
+    unique.sort((a, b) {
+      if (a.key == null && b.key == null) return 0;
+      if (a.key == null) return 1;
+      if (b.key == null) return -1;
+      return b.key!.compareTo(a.key!);
+    });
+
+    final news = unique.take(20).map((e) => e.value).toList();
+
     return [
-      NewsItem(
-        id: 'fb-1',
-        title: 'Harga Emas Antam Naik Rp 5.000 Hari Ini, Tembus Rekor Baru',
-        summary: 'Pergerakan harga emas batangan domestik terus menguat seiring dengan ketidakpastian geopolitik dan lonjakan permintaan instrumen safe-haven.',
-        source: 'CNBC Indonesia',
-        timeAgo: '30 mnt lalu',
-        readTime: '2 mnt baca',
-        category: 'XAU/USD',
-        tagType: 'HOT',
-        imageUrl: 'https://images.unsplash.com/photo-1610375461246-83df859d849d?auto=format&fit=crop&w=600&q=80',
-        fullContent: 'https://www.cnbcindonesia.com/market/20240920081230-17-573121/harga-emas-antam-hari-ini-naik-tembus-rekor-tertinggi-sepanjang-masa',
-        featured: true,
-      ),
-      NewsItem(
-        id: 'fb-2',
-        title: 'Prediksi Suku Bunga The Fed dan Dampaknya Terhadap Nilai Tukar Rupiah',
-        summary: 'Sinyal pemangkasan suku bunga acuan diperkirakan akan memberi dorongan positif bagi aset komoditas emas dan indeks mata uang berkembang.',
-        source: 'Reuters Finance',
-        timeAgo: '1 jam lalu',
-        readTime: '4 mnt baca',
-        category: 'FOREX',
-        tagType: 'ANALYSIS',
-        imageUrl: 'https://images.unsplash.com/photo-1590283603385-17ffb3a7f29f?auto=format&fit=crop&w=600&q=80',
-        fullContent: 'https://id.investing.com/currencies/xau-usd-news',
-        featured: false,
-      ),
-      NewsItem(
-        id: 'fb-3',
-        title: 'Strategi Manajemen Risiko Trading Kalkulator di Pasar Volatil',
-        summary: 'Ketahui cara menghitung Position Sizing dan Stop Loss yang ideal sebelum mengeksekusi transaksi pasar komoditas.',
-        source: 'Bloomberg Markets',
-        timeAgo: '2 jam lalu',
-        readTime: '3 mnt baca',
-        category: 'TRADING',
-        tagType: 'TIPS',
-        imageUrl: 'https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?auto=format&fit=crop&w=600&q=80',
-        fullContent: 'https://www.bloomberg.com/markets/commodities',
-        featured: false,
-      ),
-      NewsItem(
-        id: 'fb-4',
-        title: 'Bank Sentral China Menambah Cadangan Emas Fisik 10 Ton',
-        summary: 'Langkah akumulasi beruntun selama 18 bulan mendongkrak optimisme harga emas dunia melampaui resistansi \$2.350.',
-        source: 'CNBC World',
-        timeAgo: '3 jam lalu',
-        readTime: '3 mnt baca',
-        category: 'COMMODITY',
-        tagType: 'NEWS',
-        imageUrl: 'https://images.unsplash.com/photo-1589758438368-0ad531db3366?auto=format&fit=crop&w=600&q=80',
-        fullContent: 'https://www.cnbc.com/gold/',
-        featured: false,
-      ),
+      for (var i = 0; i < news.length; i++)
+        NewsItem(
+          id: news[i].id,
+          title: news[i].title,
+          summary: news[i].summary,
+          source: news[i].source,
+          timeAgo: news[i].timeAgo,
+          readTime: news[i].readTime,
+          category: news[i].category,
+          tagType: news[i].tagType,
+          imageUrl: news[i].imageUrl,
+          fullContent: news[i].fullContent,
+          featured: i == 0,
+        ),
     ];
   }
 }
