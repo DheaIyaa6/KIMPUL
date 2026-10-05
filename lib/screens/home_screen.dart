@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:url_launcher/url_launcher.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
 import 'package:kimpul/services/api_service.dart';
@@ -11,7 +10,6 @@ import 'package:kimpul/screens/header_screen.dart';
 import 'package:kimpul/screens/history_screen.dart';
 import 'package:kimpul/screens/login_screen.dart';
 import 'package:kimpul/screens/modals_screen.dart';
-import 'package:kimpul/screens/nest_calculator.dart';
 import 'package:kimpul/screens/news_screen.dart';
 import 'package:kimpul/screens/pivot_calculator.dart';
 import 'package:kimpul/screens/profile_screen.dart';
@@ -55,8 +53,9 @@ class _HomeScreenState extends State<HomeScreen> {
   // List Riwayat Perhitungan Local State
   final List<dynamic> _historyItems = [];
 
-  // State Berita Live (Didapat dari ApiService / PHP Backend Laragon)
+  // State Berita Live
   List<NewsItem> _liveNewsItems = [];
+  bool _isLoadingLiveNews = true;
 
   List<HistoryItem> _buildLiveHistoryClosingItems() {
     return _liveNewsItems.map((news) {
@@ -72,12 +71,11 @@ class _HomeScreenState extends State<HomeScreen> {
       );
     }).toList();
   }
-  bool _isLoadingLiveNews = true;
 
   // User Profile
   late UserProfile _userProfile;
 
-  // FUNGSI FETCH LIVE NEWS VIA API SERVICE BACKEND
+  // FUNGSI FETCH LIVE NEWS VIA API SERVICE
   Future<void> _fetchLiveNews() async {
     try {
       final fetchedItems = await ApiService.getTradingViewNews();
@@ -140,25 +138,9 @@ class _HomeScreenState extends State<HomeScreen> {
     return true;
   }
 
-  Future<void> _openNewsLink(NewsItem news) async {
-    final rawUrl = news.fullContent.trim();
-    final uri = Uri.tryParse(rawUrl);
-
-    if (uri == null || !uri.hasScheme || uri.host.isEmpty) {
-      if (mounted) {
-        NewsDetailModal.show(context, news);
-      }
-      return;
-    }
-
-    final launched = await launchUrl(
-      uri,
-      mode: LaunchMode.externalApplication,
-    );
-
-    if (!launched && mounted) {
-      NewsDetailModal.show(context, news);
-    }
+  // 🌟 MEMBUKA MODAL DETAIL BERITA SAAT BERITA DIKLIK
+  void _openNewsDetail(NewsItem news) {
+    NewsDetailModal.show(context, news);
   }
 
   void _handleLogout() {
@@ -209,7 +191,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
     _newsPageController = PageController(initialPage: 0);
 
-    // Fetch Berita Live dari API Backend saat Pertama Dimuat
+    // Fetch Berita Live saat Pertama Dimuat
     _fetchLiveNews();
   }
 
@@ -290,7 +272,6 @@ class _HomeScreenState extends State<HomeScreen> {
     String formattedDate = DateFormat('EEEE, d MMMM yyyy', 'id_ID').format(_currentTime);
     String formattedTime = DateFormat('HH:mm:ss', 'id_ID').format(_currentTime);
 
-    // AMBIL TEPAT 3 BERITA TERBARU UNTUK 3 SLIDE
     final carouselNews = _liveNewsItems.take(3).toList();
 
     return SingleChildScrollView(
@@ -298,7 +279,7 @@ class _HomeScreenState extends State<HomeScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Greeting & Tanggal Jam Real-time
+          // Greeting & Tanggal Jam
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -349,7 +330,7 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           const SizedBox(height: 20),
 
-          // HEADER BERITA (DILUAR KOTAK/CARD)
+          // HEADER BERITA TERKINI
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -382,7 +363,7 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           const SizedBox(height: 12),
 
-          // KOTAK BERITA MELAYANG (LIVE 3 SLIDE CAROUSEL)
+          // CAROUSEL BERITA LIVE (3 SLIDE)
           if (_isLoadingLiveNews)
             Container(
               height: 260,
@@ -421,7 +402,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 itemBuilder: (context, index) {
                   final news = carouselNews[index];
                   return InkWell(
-                    onTap: () => NewsDetailModal.show(context, news),
+                    onTap: () => _openNewsDetail(news),
                     borderRadius: BorderRadius.circular(16),
                     child: Container(
                       decoration: BoxDecoration(
@@ -568,7 +549,7 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
             const SizedBox(height: 10),
 
-            // INDIKATOR TITIK SLIDER (DOTS 3 SLIDE)
+            // DOTS INDIKATOR SLIDER
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: List.generate(
@@ -1138,14 +1119,6 @@ class _HomeScreenState extends State<HomeScreen> {
         },
         onOpenDetailModal: (calc) {},
       );
-    } else if (_selectedCalcView == CalcView.nest) {
-      return NestCalculator(
-        onBack: () {
-          setState(() {
-            _selectedCalcView = null;
-          });
-        },
-      );
     } else {
       return CalcHubScreen(
         onSelectCalc: (view) {
@@ -1163,7 +1136,7 @@ class _HomeScreenState extends State<HomeScreen> {
       _buildHomeTab(),
       NewsScreen(
         newsItems: _liveNewsItems,
-        onOpenNewsDetail: _openNewsLink,
+        onOpenNewsDetail: _openNewsDetail,
       ),
       _buildCalculatorTab(),
       HistoryScreen(

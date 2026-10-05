@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:kimpul/screens/modals_screen.dart';
 import 'package:kimpul/screens/edit_profile_screen.dart'; 
 import 'package:kimpul/screens/change_password_screen.dart';
@@ -11,9 +12,32 @@ class ProfileStorage {
   static const String _keyName = 'profile_name';
   static const String _keyEmail = 'profile_email';
 
+  // 🌟 MENGUNCI KEY FOTO PROFIL DENGAN EMAIL USER
   static String _getAvatarKey(String email) {
     final cleanEmail = email.trim().toLowerCase();
     return 'profile_avatar_path_$cleanEmail';
+  }
+
+  // 🌟 FUNGSI UPLOAD FOTO KE CLOUD FIREBASE STORAGE
+  static Future<String?> uploadImageToCloud(File imageFile, String userEmail) async {
+    try {
+      final cleanEmail = userEmail.trim().toLowerCase();
+      // Buat path penyimpanan di Firebase Storage berdasarkan email user
+      final ref = FirebaseStorage.instance
+          .ref()
+          .child('profile_photos')
+          .child('$cleanEmail.jpg');
+
+      // Upload file
+      await ref.putFile(imageFile);
+
+      // Ambil URL publik HTTPS yang bisa diakses dari HP mana saja
+      final String downloadUrl = await ref.getDownloadURL();
+      return downloadUrl;
+    } catch (e) {
+      debugPrint("Gagal upload foto ke Firebase Storage: $e");
+      return null;
+    }
   }
 
   static Future<void> saveLoginProfile({
@@ -219,7 +243,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       }
     }
 
-    // 3. Jika berupa URL HTTP/HTTPS lengkap dari internet/server
+    // 3. Jika berupa URL HTTP/HTTPS lengkap dari internet/server (Termasuk Firebase Storage)
     if (cleanPath.startsWith('http://') || cleanPath.startsWith('https://')) {
       return NetworkImage('$cleanPath?v=${DateTime.now().millisecondsSinceEpoch}');
     }
@@ -262,7 +286,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               children: [
                 Stack(
                   children: [
-                    // CIRCLE AVATAR (Mendukung Foto Server Laragon, File HP, & Ikon Bawaan)
+                    // CIRCLE AVATAR (Mendukung Foto Firebase Storage, Server Laragon, File HP, & Ikon Bawaan)
                     CircleAvatar(
                       radius: 40,
                       backgroundColor: const Color(0xFFE2E8F0),
