@@ -10,6 +10,8 @@ class MarketInstrument {
   final String subtitle;
   final String tvSymbol;
   final String price;
+  final String open;
+  final String close;
   final String high;
   final String low;
   final String change;
@@ -27,6 +29,8 @@ class MarketInstrument {
     required this.subtitle,
     required this.tvSymbol,
     required this.price,
+    required this.open,
+    required this.close,
     required this.high,
     required this.low,
     required this.change,
@@ -57,6 +61,8 @@ class _MarketOverviewScreenState extends State<MarketOverviewScreen> {
       subtitle: 'Indeks Saham Hong Kong',
       tvSymbol: 'INDEX:HSI',
       price: '23.716,50',
+      open: '23.409,70',
+      close: '23.716,50',
       high: '23.842,30',
       low: '23.410,20',
       change: '+306,80 (+1,31%)',
@@ -74,6 +80,8 @@ class _MarketOverviewScreenState extends State<MarketOverviewScreen> {
       subtitle: 'Emas Batangan Dunia',
       tvSymbol: 'OANDA:XAUUSD',
       price: '2.338,80',
+      open: '2.326,40',
+      close: '2.338,80',
       high: '2.352,10',
       low: '2.328,40',
       change: '+12,40 (+0,53%)',
@@ -91,6 +99,8 @@ class _MarketOverviewScreenState extends State<MarketOverviewScreen> {
       subtitle: 'Pasangan Mata Uang Forex',
       tvSymbol: 'OANDA:USDJPY',
       price: '149,85',
+      open: '149,50',
+      close: '149,85',
       high: '150,20',
       low: '149,10',
       change: '+0,35 (+0,23%)',
@@ -192,8 +202,9 @@ class _MarketOverviewScreenState extends State<MarketOverviewScreen> {
           ),
         ],
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
+      body: SafeArea(
+        child: SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -374,6 +385,16 @@ class _MarketOverviewScreenState extends State<MarketOverviewScreen> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceAround,
                     children: [
+                      _buildMetric('Open', selected.open),
+                      _buildMetric('Close', selected.close),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  const Divider(color: Color(0xFFF1F5F9), height: 1),
+                  const SizedBox(height: 12),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceAround,
+                    children: [
                       _buildMetric('Tertinggi 24j', selected.high),
                       _buildMetric('Terendah 24j', selected.low),
                       _buildMetric(
@@ -482,6 +503,7 @@ class _MarketOverviewScreenState extends State<MarketOverviewScreen> {
             ),
           ],
         ),
+      ),
       ),
     );
   }

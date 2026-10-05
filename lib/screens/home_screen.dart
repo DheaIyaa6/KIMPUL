@@ -647,40 +647,64 @@ class _HomeScreenState extends State<HomeScreen> {
             ],
           ),
           const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                child: _buildQuickCalcCard(
-                  title: 'Pivot Point',
-                  subtitle: 'Level Support &\nResistance intraday...',
-                  btnText: 'Buka Kalkulator',
-                  icon: Icons.calculate_outlined,
-                  onTap: () {
-                    setState(() {
-                      _selectedIndex = 2;
-                      _selectedCalcView = CalcView.pivot;
-                    });
-                  },
-                  primaryColor: primaryPink,
+          SizedBox(
+            height: 176,
+            child: ListView(
+              scrollDirection: Axis.horizontal,
+              clipBehavior: Clip.none,
+              children: [
+                SizedBox(
+                  width: 180,
+                  child: _buildQuickCalcCard(
+                    title: 'Pivot Point',
+                    subtitle: 'Level Support &\nResistance intraday...',
+                    btnText: 'Buka Kalkulator',
+                    icon: Icons.calculate_outlined,
+                    onTap: () {
+                      setState(() {
+                        _selectedIndex = 2;
+                        _selectedCalcView = CalcView.pivot;
+                      });
+                    },
+                    primaryColor: primaryPink,
+                  ),
                 ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _buildQuickCalcCard(
-                  title: 'Emas Fisik',
-                  subtitle: 'Estimasi gramatur,\nkarat, cetak & PPh 22.',
-                  btnText: 'Simulasi Fisik',
-                  icon: Icons.account_balance_wallet_outlined,
-                  onTap: () {
-                    setState(() {
-                      _selectedIndex = 2;
-                      _selectedCalcView = CalcView.gold;
-                    });
-                  },
-                  primaryColor: primaryPink,
+                const SizedBox(width: 12),
+                SizedBox(
+                  width: 180,
+                  child: _buildQuickCalcCard(
+                    title: 'Emas Fisik',
+                    subtitle: 'Estimasi gramatur,\nkarat, cetak & PPh 22.',
+                    btnText: 'Simulasi Fisik',
+                    icon: Icons.account_balance_wallet_outlined,
+                    onTap: () {
+                      setState(() {
+                        _selectedIndex = 2;
+                        _selectedCalcView = CalcView.gold;
+                      });
+                    },
+                    primaryColor: primaryPink,
+                  ),
                 ),
-              ),
-            ],
+                const SizedBox(width: 12),
+                SizedBox(
+                  width: 180,
+                  child: _buildQuickCalcCard(
+                    title: 'Nest',
+                    subtitle: 'Follow the trend dari\nharga Open & Close.',
+                    btnText: 'Buka Kalkulator',
+                    icon: Icons.trending_up_rounded,
+                    onTap: () {
+                      setState(() {
+                        _selectedIndex = 2;
+                        _selectedCalcView = CalcView.nest;
+                      });
+                    },
+                    primaryColor: primaryPink,
+                  ),
+                ),
+              ],
+            ),
           ),
           const SizedBox(height: 24),
 
