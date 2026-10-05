@@ -12,12 +12,9 @@ class MarketInstrument {
   final String tabSubtitle;
   final String fullName;
   final String subtitle;
-  final String tvSymbol;
-  final String price;
-  final String high;
-  final String low;
-  final String change;
-  final bool changeIsPositive;
+  final String tvSymbol; // simbol TradingView (grafik)
+  final String nmSymbol; // simbol Newsmaker (angka live)
+  final int decimals; // angka di belakang koma
   final String country;
   final String type;
   final String tradingHours;
@@ -30,11 +27,8 @@ class MarketInstrument {
     required this.fullName,
     required this.subtitle,
     required this.tvSymbol,
-    required this.price,
-    required this.high,
-    required this.low,
-    required this.change,
-    required this.changeIsPositive,
+    required this.nmSymbol,
+    required this.decimals,
     required this.country,
     required this.type,
     required this.tradingHours,
@@ -61,12 +55,9 @@ class _MarketOverviewScreenState extends State<MarketOverviewScreen> {
       tabSubtitle: 'Hang Seng',
       fullName: 'Hang Seng Index (HSI)',
       subtitle: 'Indeks Saham Hong Kong',
-      tvSymbol: 'INDEX:HSI',
-      price: '23.716,50',
-      high: '23.842,30',
-      low: '23.410,20',
-      change: '+306,80 (+1,31%)',
-      changeIsPositive: true,
+      tvSymbol: 'OANDA:HK33HKD',
+      nmSymbol: 'HKK50_BBJ',
+      decimals: 0,
       country: 'Hong Kong',
       type: 'Indeks Saham',
       tradingHours: '09.30 - 16.00 (HKT)',
@@ -79,11 +70,8 @@ class _MarketOverviewScreenState extends State<MarketOverviewScreen> {
       fullName: 'Gold Spot (XAU/USD)',
       subtitle: 'Emas Batangan Dunia',
       tvSymbol: 'OANDA:XAUUSD',
-      price: '2.338,80',
-      high: '2.352,10',
-      low: '2.328,40',
-      change: '+12,40 (+0,53%)',
-      changeIsPositive: true,
+      nmSymbol: 'XUL10',
+      decimals: 2,
       country: 'Global (OTC)',
       type: 'Komoditas',
       tradingHours: '24 Jam (Senin-Jumat)',
@@ -91,21 +79,18 @@ class _MarketOverviewScreenState extends State<MarketOverviewScreen> {
       iconColor: Color(0xFFCA8A04),
     ),
     MarketInstrument(
-      tabLabel: 'USDJPY',
-      tabSubtitle: 'USD / Yen',
-      fullName: 'US Dollar / Japanese Yen',
-      subtitle: 'Pasangan Mata Uang Forex',
-      tvSymbol: 'OANDA:USDJPY',
-      price: '149,85',
-      high: '150,20',
-      low: '149,10',
-      change: '+0,35 (+0,23%)',
-      changeIsPositive: true,
-      country: 'Global (Forex)',
-      type: 'Mata Uang',
-      tradingHours: '24 Jam (Senin-Jumat)',
-      icon: Icons.currency_yen_rounded,
-      iconColor: Color(0xFFE93A56),
+      tabLabel: 'NIKKEI',
+      tabSubtitle: 'Nikkei 225',
+      fullName: 'Nikkei 225 (JPK)',
+      subtitle: 'Indeks Saham Jepang',
+      tvSymbol: 'OANDA:JP225USD',
+      nmSymbol: 'JPK50_BBJ',
+      decimals: 0,
+      country: 'Jepang',
+      type: 'Indeks Saham',
+      tradingHours: '09.00 - 15.30 (JST)',
+      icon: Icons.show_chart_rounded,
+      iconColor: Color(0xFF1E3A8A),
     ),
   ];
 
@@ -265,9 +250,8 @@ class _MarketOverviewScreenState extends State<MarketOverviewScreen> {
           ),
         ],
       ),
-      body: SafeArea(
-        child: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -445,16 +429,6 @@ class _MarketOverviewScreenState extends State<MarketOverviewScreen> {
                   const SizedBox(height: 14),
                   const Divider(color: Color(0xFFF1F5F9), height: 1),
                   const SizedBox(height: 12),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceAround,
-                    children: [
-                      _buildMetric('Open', selected.open),
-                      _buildMetric('Close', selected.close),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  const Divider(color: Color(0xFFF1F5F9), height: 1),
-                  const SizedBox(height: 12),
 
                   // List data pasar live (Newsmaker)
                   _buildQuoteList(quote, selected.decimals),
@@ -555,7 +529,6 @@ class _MarketOverviewScreenState extends State<MarketOverviewScreen> {
             ),
           ],
         ),
-      ),
       ),
     );
   }
