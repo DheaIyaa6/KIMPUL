@@ -18,7 +18,7 @@ class NewsScreen extends StatefulWidget {
 class _NewsScreenState extends State<NewsScreen> {
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
-  int _loadedCount = 4;
+  int _loadedCount = 10; // 🌟 Memuat 10 Berita awal
   bool _isLoadingMore = false;
   bool _isRefreshing = false;
   bool _isLoadingLive = true;
@@ -35,12 +35,10 @@ class _NewsScreenState extends State<NewsScreen> {
       });
     });
 
-    // Jika dari HomeScreen sudah membawa data berita, langsung pakai
     if (widget.newsItems.isNotEmpty) {
       _liveNewsItems = widget.newsItems;
       _isLoadingLive = false;
     } else {
-      // Ambil Berita Live via Backend Laragon saat Pertama kali Layar Dimuat
       _fetchLiveNews();
     }
   }
@@ -51,7 +49,6 @@ class _NewsScreenState extends State<NewsScreen> {
     super.dispose();
   }
 
-  // FUNGSI FETCH LIVE NEWS VIA BACKEND LARAGON (PHP PROXY)
   Future<void> _fetchLiveNews() async {
     try {
       final fetchedItems = await ApiService.getTradingViewNews();
@@ -98,17 +95,16 @@ class _NewsScreenState extends State<NewsScreen> {
       _isLoadingMore = true;
     });
 
-    await Future.delayed(const Duration(milliseconds: 600));
+    await Future.delayed(const Duration(milliseconds: 400));
 
     if (mounted) {
       setState(() {
-        _loadedCount += 3;
+        _loadedCount += 5;
         _isLoadingMore = false;
       });
     }
   }
 
-  // REFRESH BERITA LIVE
   void _handleRefresh() async {
     if (_isRefreshing) return;
 
@@ -120,7 +116,7 @@ class _NewsScreenState extends State<NewsScreen> {
 
     if (mounted) {
       setState(() {
-        _loadedCount = 4;
+        _loadedCount = 10;
         _isRefreshing = false;
       });
     }
@@ -131,16 +127,13 @@ class _NewsScreenState extends State<NewsScreen> {
     final primaryColor = Theme.of(context).colorScheme.primary;
     final filtered = _filteredNews;
 
-    // Penanganan featured article
     NewsItem? featuredArticle;
-
     for (final n in _activeNewsList) {
       if (n.featured) {
         featuredArticle = n;
         break;
       }
     }
-
     featuredArticle ??=
         _activeNewsList.isNotEmpty ? _activeNewsList.first : null;
 
@@ -157,7 +150,7 @@ class _NewsScreenState extends State<NewsScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Section Intro Header
+          // Header Status
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -169,9 +162,7 @@ class _NewsScreenState extends State<NewsScreen> {
                 decoration: BoxDecoration(
                   color: const Color(0xFFF8FAFC),
                   borderRadius: BorderRadius.circular(20),
-                  border: Border.all(
-                    color: const Color(0xFFE2E8F0),
-                  ),
+                  border: Border.all(color: const Color(0xFFE2E8F0)),
                 ),
                 child: Row(
                   children: [
@@ -196,8 +187,6 @@ class _NewsScreenState extends State<NewsScreen> {
                   ],
                 ),
               ),
-
-              // REAL-TIME FEED + REFRESH
               Row(
                 children: [
                   IconButton(
@@ -296,9 +285,7 @@ class _NewsScreenState extends State<NewsScreen> {
               contentPadding: const EdgeInsets.symmetric(vertical: 10),
               enabledBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
-                borderSide: const BorderSide(
-                  color: Color(0xFFE2E8F0),
-                ),
+                borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
               ),
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
@@ -320,7 +307,7 @@ class _NewsScreenState extends State<NewsScreen> {
               ),
             ),
           ] else ...[
-            // HERO FEATURED ARTICLE (LANGSUNG DIBAWAH SEARCH BAR)
+            // FEATURED ARTICLE
             if (featuredArticle != null &&
                 featuredArticle.title.isNotEmpty &&
                 _searchQuery.isEmpty) ...[
@@ -356,9 +343,7 @@ class _NewsScreenState extends State<NewsScreen> {
                   decoration: BoxDecoration(
                     color: Colors.white,
                     borderRadius: BorderRadius.circular(16),
-                    border: Border.all(
-                      color: const Color(0xFFE2E8F0),
-                    ),
+                    border: Border.all(color: const Color(0xFFE2E8F0)),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -376,13 +361,10 @@ class _NewsScreenState extends State<NewsScreen> {
                                 featuredArticle.imageUrl,
                                 fit: BoxFit.cover,
                                 errorBuilder: (context, error, stackTrace) =>
-                                    Container(
-                                  color: const Color(0xFFE2E8F0),
-                                ),
+                                    Container(color: const Color(0xFFE2E8F0)),
                               ),
                             ),
                           ),
-
                           Positioned.fill(
                             child: Container(
                               decoration: BoxDecoration(
@@ -394,16 +376,13 @@ class _NewsScreenState extends State<NewsScreen> {
                                   end: Alignment.bottomCenter,
                                   colors: [
                                     Colors.transparent,
-                                    Colors.black.withValues(
-                                      alpha: 0.85,
-                                    ),
+                                    Colors.black.withValues(alpha: 0.85),
                                   ],
                                   stops: const [0.3, 1.0],
                                 ),
                               ),
                             ),
                           ),
-
                           Positioned(
                             bottom: 12,
                             left: 14,
@@ -422,7 +401,6 @@ class _NewsScreenState extends State<NewsScreen> {
                           ),
                         ],
                       ),
-
                       Padding(
                         padding: const EdgeInsets.all(14),
                         child: Column(
@@ -438,9 +416,7 @@ class _NewsScreenState extends State<NewsScreen> {
                                 height: 1.4,
                               ),
                             ),
-
                             const SizedBox(height: 12),
-
                             Row(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
@@ -481,11 +457,11 @@ class _NewsScreenState extends State<NewsScreen> {
               const SizedBox(height: 20),
             ],
 
-            // LATEST NEWS LIST
+            // DAFTAR BERITA LIVE LENGKAP
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: const [
-                Text(
+              children: [
+                const Text(
                   'KABAR PASAR TERKINI',
                   style: TextStyle(
                     fontSize: 11.5,
@@ -495,8 +471,8 @@ class _NewsScreenState extends State<NewsScreen> {
                   ),
                 ),
                 Text(
-                  'Terbaru',
-                  style: TextStyle(
+                  'Total ${filtered.length} Berita',
+                  style: const TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.w500,
                     color: Color(0xFF94A3B8),
@@ -524,9 +500,7 @@ class _NewsScreenState extends State<NewsScreen> {
                     decoration: BoxDecoration(
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(16),
-                      border: Border.all(
-                        color: const Color(0xFFE2E8F0),
-                      ),
+                      border: Border.all(color: const Color(0xFFE2E8F0)),
                     ),
                     child: Row(
                       children: [
@@ -549,9 +523,7 @@ class _NewsScreenState extends State<NewsScreen> {
                             ),
                           ),
                         ),
-
                         const SizedBox(width: 12),
-
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
@@ -566,14 +538,10 @@ class _NewsScreenState extends State<NewsScreen> {
                                       vertical: 2,
                                     ),
                                     decoration: BoxDecoration(
-                                      color: primaryColor.withValues(
-                                        alpha: 0.08,
-                                      ),
+                                      color: primaryColor.withValues(alpha: 0.08),
                                       borderRadius: BorderRadius.circular(12),
                                       border: Border.all(
-                                        color: primaryColor.withValues(
-                                          alpha: 0.2,
-                                        ),
+                                        color: primaryColor.withValues(alpha: 0.2),
                                       ),
                                     ),
                                     child: Text(
@@ -585,7 +553,6 @@ class _NewsScreenState extends State<NewsScreen> {
                                       ),
                                     ),
                                   ),
-
                                   Text(
                                     article.timeAgo,
                                     style: const TextStyle(
@@ -595,9 +562,7 @@ class _NewsScreenState extends State<NewsScreen> {
                                   ),
                                 ],
                               ),
-
                               const SizedBox(height: 6),
-
                               Text(
                                 article.title,
                                 maxLines: 2,
@@ -609,9 +574,7 @@ class _NewsScreenState extends State<NewsScreen> {
                                   height: 1.25,
                                 ),
                               ),
-
                               const SizedBox(height: 6),
-
                               Text(
                                 article.source,
                                 overflow: TextOverflow.ellipsis,
@@ -630,10 +593,9 @@ class _NewsScreenState extends State<NewsScreen> {
               },
             ),
 
-            // Load More Button
+            // Tombol Muat Lebih Banyak
             if (_loadedCount < regularArticles.length) ...[
               const SizedBox(height: 16),
-
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
@@ -657,7 +619,7 @@ class _NewsScreenState extends State<NewsScreen> {
                           ),
                         )
                       : const Text(
-                          'Muat Lebih Banyak',
+                          'Muat Lebih Banyak Berita',
                           style: TextStyle(
                             fontSize: 13,
                             fontWeight: FontWeight.w600,

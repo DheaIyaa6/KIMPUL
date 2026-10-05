@@ -39,24 +39,34 @@ class NewsDetailModal extends StatelessWidget {
   }
 
   Future<void> _openFullArticle(BuildContext context) async {
-    final uri = Uri.tryParse(news.fullContent.trim());
-
-    if (uri == null || !uri.hasScheme || uri.host.isEmpty) {
+    final rawUrl = news.fullContent.trim();
+    
+    if (rawUrl.isEmpty || !rawUrl.startsWith('http')) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Link berita tidak tersedia saat ini.')),
+        const SnackBar(content: Text('Link berita tidak tersedia.')),
       );
       return;
     }
 
-    final launched = await launchUrl(
-      uri,
-      mode: LaunchMode.externalApplication,
-    );
+    final Uri uri = Uri.parse(rawUrl);
 
-    if (!launched && context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Tidak dapat membuka link berita.')),
+    try {
+      final bool launched = await launchUrl(
+        uri,
+        mode: LaunchMode.externalApplication,
       );
+
+      if (!launched && context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Gagal membuka browser.')),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Tidak dapat membuka tautan: $e')),
+        );
+      }
     }
   }
 
@@ -162,14 +172,15 @@ class NewsDetailModal extends StatelessWidget {
                       ),
                       Row(
                         children: [
-                          OutlinedButton(
+                          OutlinedButton.icon(
                             onPressed: () => _openFullArticle(context),
+                            icon: const Icon(Icons.open_in_new_rounded, size: 14),
+                            label: const Text('Baca Full', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600)),
                             style: OutlinedButton.styleFrom(
                               foregroundColor: primaryColor,
                               side: BorderSide(color: primaryColor),
                               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                             ),
-                            child: const Text('Baca Full', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600)),
                           ),
                           const SizedBox(width: 8),
                           ElevatedButton(
@@ -180,7 +191,7 @@ class NewsDetailModal extends StatelessWidget {
                               elevation: 0,
                               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                             ),
-                            child: const Text('Selesai', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600)),
+                            child: const Text('Tutup', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600)),
                           ),
                         ],
                       ),
@@ -198,7 +209,7 @@ class NewsDetailModal extends StatelessWidget {
 
 // --- 2. CALCULATION DETAIL MODAL ---
 class CalculationDetailModal extends StatelessWidget {
-  final dynamic item; // HistoryItem / PivotCalculation
+  final dynamic item;
 
   const CalculationDetailModal({super.key, required this.item});
 
@@ -221,7 +232,6 @@ class CalculationDetailModal extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Modal Header
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -252,7 +262,6 @@ class CalculationDetailModal extends StatelessWidget {
             const Divider(height: 24, color: Color(0xFFE2E8F0)),
 
             if (isPivot) ...[
-              // Pivot Details
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
@@ -312,7 +321,6 @@ class CalculationDetailModal extends StatelessWidget {
                 ],
               ),
             ] else ...[
-              // Gold Details
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
