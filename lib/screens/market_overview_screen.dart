@@ -1,4 +1,8 @@
+import 'dart:async';
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
 import 'package:webview_flutter/webview_flutter.dart';
 
 import 'package:kimpul/screens/tradingview_screen.dart';
@@ -8,12 +12,9 @@ class MarketInstrument {
   final String tabSubtitle;
   final String fullName;
   final String subtitle;
-  final String tvSymbol;
-  final String price;
-  final String high;
-  final String low;
-  final String change;
-  final bool changeIsPositive;
+  final String tvSymbol; // simbol TradingView (grafik)
+  final String nmSymbol; // simbol Newsmaker (angka live)
+  final int decimals; // angka di belakang koma
   final String country;
   final String type;
   final String tradingHours;
@@ -26,11 +27,8 @@ class MarketInstrument {
     required this.fullName,
     required this.subtitle,
     required this.tvSymbol,
-    required this.price,
-    required this.high,
-    required this.low,
-    required this.change,
-    required this.changeIsPositive,
+    required this.nmSymbol,
+    required this.decimals,
     required this.country,
     required this.type,
     required this.tradingHours,
@@ -48,6 +46,8 @@ class MarketOverviewScreen extends StatefulWidget {
 
 class _MarketOverviewScreenState extends State<MarketOverviewScreen> {
   static const Color primaryPink = Color(0xFFE93A56);
+  static const Color upGreen = Color(0xFF059669);
+  static const String _quoteUrl = 'https://www.newsmaker.id/api/live-quotes';
 
   final List<MarketInstrument> _instruments = const [
     MarketInstrument(
@@ -55,12 +55,9 @@ class _MarketOverviewScreenState extends State<MarketOverviewScreen> {
       tabSubtitle: 'Hang Seng',
       fullName: 'Hang Seng Index (HSI)',
       subtitle: 'Indeks Saham Hong Kong',
-      tvSymbol: 'INDEX:HSI',
-      price: '23.716,50',
-      high: '23.842,30',
-      low: '23.410,20',
-      change: '+306,80 (+1,31%)',
-      changeIsPositive: true,
+      tvSymbol: 'OANDA:HK33HKD',
+      nmSymbol: 'HKK50_BBJ',
+      decimals: 0,
       country: 'Hong Kong',
       type: 'Indeks Saham',
       tradingHours: '09.30 - 16.00 (HKT)',
@@ -73,11 +70,8 @@ class _MarketOverviewScreenState extends State<MarketOverviewScreen> {
       fullName: 'Gold Spot (XAU/USD)',
       subtitle: 'Emas Batangan Dunia',
       tvSymbol: 'OANDA:XAUUSD',
-      price: '2.338,80',
-      high: '2.352,10',
-      low: '2.328,40',
-      change: '+12,40 (+0,53%)',
-      changeIsPositive: true,
+      nmSymbol: 'XUL10',
+      decimals: 2,
       country: 'Global (OTC)',
       type: 'Komoditas',
       tradingHours: '24 Jam (Senin-Jumat)',
@@ -85,32 +79,95 @@ class _MarketOverviewScreenState extends State<MarketOverviewScreen> {
       iconColor: Color(0xFFCA8A04),
     ),
     MarketInstrument(
-      tabLabel: 'USDJPY',
-      tabSubtitle: 'USD / Yen',
-      fullName: 'US Dollar / Japanese Yen',
-      subtitle: 'Pasangan Mata Uang Forex',
-      tvSymbol: 'OANDA:USDJPY',
-      price: '149,85',
-      high: '150,20',
-      low: '149,10',
-      change: '+0,35 (+0,23%)',
-      changeIsPositive: true,
-      country: 'Global (Forex)',
-      type: 'Mata Uang',
-      tradingHours: '24 Jam (Senin-Jumat)',
-      icon: Icons.currency_yen_rounded,
-      iconColor: Color(0xFFE93A56),
+      tabLabel: 'NIKKEI',
+      tabSubtitle: 'Nikkei 225',
+      fullName: 'Nikkei 225 (JPK)',
+      subtitle: 'Indeks Saham Jepang',
+      tvSymbol: 'OANDA:JP225USD',
+      nmSymbol: 'JPK50_BBJ',
+      decimals: 0,
+      country: 'Jepang',
+      type: 'Indeks Saham',
+      tradingHours: '09.00 - 15.30 (JST)',
+      icon: Icons.show_chart_rounded,
+      iconColor: Color(0xFF1E3A8A),
     ),
   ];
 
   int _selectedIndex = 0;
   late final List<WebViewController> _controllers;
 
+  // ---- Data live Newsmaker ----
+  Timer? _quoteTimer;
+  Map<String, Map<String, dynamic>> _quotes = {};
+  bool _quoteBusy = false;
+  bool _quoteError = false;
+
   @override
   void initState() {
     super.initState();
     _controllers =
         _instruments.map((ins) => _buildController(ins.tvSymbol)).toList();
+
+    _loadQuotes();
+    _quoteTimer =
+        Timer.periodic(const Duration(seconds: 3), (_) => _loadQuotes());
+  }
+
+  @override
+  void dispose() {
+    _quoteTimer?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _loadQuotes() async {
+    if (_quoteBusy) return;
+    _quoteBusy = true;
+    try {
+      final res = await http
+          .get(Uri.parse(_quoteUrl), headers: {'Accept': 'application/json'})
+          .timeout(const Duration(seconds: 8));
+      if (res.statusCode != 200) {
+        throw Exception('status ${res.statusCode}');
+      }
+      final body = jsonDecode(res.body) as Map<String, dynamic>;
+      final list = (body['data'] as List?) ?? [];
+      final map = <String, Map<String, dynamic>>{};
+      for (final e in list) {
+        if (e is Map<String, dynamic>) {
+          map[(e['symbol'] ?? '').toString()] = e;
+        }
+      }
+      if (!mounted) return;
+      setState(() {
+        _quotes = map;
+        _quoteError = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _quoteError = true);
+    } finally {
+      _quoteBusy = false;
+    }
+  }
+
+  // Ambil angka dari data (bisa number atau string)
+  double? _num(Map<String, dynamic>? q, String key) {
+    if (q == null || q[key] == null) return null;
+    return double.tryParse(q[key].toString());
+  }
+
+  // Format Indonesia: 24.526 / 4.144,68
+  String _fmt(double? v, int decimals) {
+    if (v == null) return '-';
+    final negative = v < 0;
+    final parts = v.abs().toStringAsFixed(decimals).split('.');
+    final intPart = parts[0].replaceAllMapped(
+      RegExp(r'\B(?=(\d{3})+(?!\d))'),
+      (m) => '.',
+    );
+    final result = parts.length > 1 ? '$intPart,${parts[1]}' : intPart;
+    return negative ? '-$result' : result;
   }
 
   WebViewController _buildController(String symbol) {
@@ -157,6 +214,7 @@ class _MarketOverviewScreenState extends State<MarketOverviewScreen> {
   @override
   Widget build(BuildContext context) {
     final selected = _instruments[_selectedIndex];
+    final quote = _quotes[selected.nmSymbol];
 
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
@@ -178,7 +236,7 @@ class _MarketOverviewScreenState extends State<MarketOverviewScreen> {
                 builder: (context) => AlertDialog(
                   title: const Text('Tentang Grafik Pasar'),
                   content: const Text(
-                    'Data grafik bersumber dari TradingView dan ditampilkan untuk tujuan informasi saja, bukan rekomendasi jual/beli.',
+                    'Grafik bersumber dari TradingView dan data harga dari Newsmaker. Keduanya ditampilkan untuk tujuan informasi saja, bukan rekomendasi jual/beli.',
                   ),
                   actions: [
                     TextButton(
@@ -371,20 +429,9 @@ class _MarketOverviewScreenState extends State<MarketOverviewScreen> {
                   const SizedBox(height: 14),
                   const Divider(color: Color(0xFFF1F5F9), height: 1),
                   const SizedBox(height: 12),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceAround,
-                    children: [
-                      _buildMetric('Tertinggi 24j', selected.high),
-                      _buildMetric('Terendah 24j', selected.low),
-                      _buildMetric(
-                        'Perubahan',
-                        selected.change,
-                        valueColor: selected.changeIsPositive
-                            ? const Color(0xFF059669)
-                            : primaryPink,
-                      ),
-                    ],
-                  ),
+
+                  // List data pasar live (Newsmaker)
+                  _buildQuoteList(quote, selected.decimals),
                 ],
               ),
             ),
@@ -469,7 +516,7 @@ class _MarketOverviewScreenState extends State<MarketOverviewScreen> {
                   SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      'Data grafik bersumber dari TradingView dan ditampilkan untuk tujuan informasi saja.',
+                      'Grafik bersumber dari TradingView dan data harga dari Newsmaker. Ditampilkan untuk tujuan informasi saja.',
                       style: TextStyle(
                         fontSize: 12,
                         color: Color(0xFF9F1239),
@@ -486,20 +533,65 @@ class _MarketOverviewScreenState extends State<MarketOverviewScreen> {
     );
   }
 
-  Widget _buildMetric(String label, String value, {Color? valueColor}) {
+  // List: Last, Perubahan, Bid, Ask, Open, High, Low, Waktu
+  Widget _buildQuoteList(Map<String, dynamic>? q, int d) {
+    final String changePct = (q?['change%'] ?? '-').toString();
+    Color changeColor = const Color(0xFF0F172A);
+    if (changePct.startsWith('+')) changeColor = upGreen;
+    if (changePct.startsWith('-') && changePct.length > 1) {
+      changeColor = primaryPink;
+    }
+
+    final String time = (q?['time'] ?? '-').toString();
+
     return Column(
       children: [
-        Text(label, style: const TextStyle(fontSize: 11, color: Color(0xFF64748B))),
-        const SizedBox(height: 2),
-        Text(
-          value,
-          style: TextStyle(
-            fontSize: 13.5,
-            fontWeight: FontWeight.bold,
-            color: valueColor ?? const Color(0xFF0F172A),
+        if (_quoteError)
+          Container(
+            width: double.infinity,
+            margin: const EdgeInsets.only(bottom: 8),
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFFF7ED),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: const Text(
+              'Data live gagal dimuat, mencoba lagi...',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 11.5, color: Color(0xFF9A3412)),
+            ),
           ),
-        ),
+        _buildQuoteRow('Last', _fmt(_num(q, 'last') ?? _num(q, 'price'), d),
+            valueColor: changeColor),
+        _buildQuoteRow('Perubahan', changePct, valueColor: changeColor),
+        _buildQuoteRow('Bid', _fmt(_num(q, 'buy'), d)),
+        _buildQuoteRow('Ask', _fmt(_num(q, 'sell'), d)),
+        _buildQuoteRow('Open', _fmt(_num(q, 'open'), d)),
+        _buildQuoteRow('High', _fmt(_num(q, 'high'), d)),
+        _buildQuoteRow('Low', _fmt(_num(q, 'low'), d)),
+        _buildQuoteRow('Waktu', time),
       ],
+    );
+  }
+
+  Widget _buildQuoteRow(String label, String value, {Color? valueColor}) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 5),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(label,
+              style: const TextStyle(fontSize: 13, color: Color(0xFF64748B))),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 13.5,
+              fontWeight: FontWeight.bold,
+              color: valueColor ?? const Color(0xFF0F172A),
+            ),
+          ),
+        ],
+      ),
     );
   }
 

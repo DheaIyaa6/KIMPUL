@@ -507,7 +507,7 @@ class _HomeScreenState extends State<HomeScreen> {
           ],
           const SizedBox(height: 20),
 
-          // Card: Grafik Pasar (ringkasan XAUUSD, Hang Seng, USDJPY)
+          // Card: Grafik Pasar (ringkasan XAUUSD, Hang Seng, JPK)
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
@@ -556,7 +556,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           ),
                           SizedBox(height: 2),
                           Text(
-                            'Pantau pergerakan XAUUSD, Hang Seng, dan USDJPY secara real-time melalui TradingView.',
+                            'Pantau pergerakan XAUUSD, Hang Seng, dan JPK secara real-time melalui TradingView.',
                             style: TextStyle(
                               fontSize: 11.5,
                               color: Color(0xFF515F74),
