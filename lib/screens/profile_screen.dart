@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -27,7 +28,8 @@ class ProfileStorage {
       if (user == null) return null;
 
       final bytes = await imageFile.readAsBytes();
-      if (bytes.length > 700 * 1024) return null; // batas aman dokumen 1 MB
+      // 500 KB -> base64 sekitar 680 ribu karakter (< batas rules 800 ribu)
+      if (bytes.length > 500 * 1024) return null;
 
       final b64 = base64Encode(bytes);
       await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
@@ -42,7 +44,21 @@ class ProfileStorage {
     }
   }
 
-  // Ambil foto dari Firestore. Kosong kalau belum ada / gagal.
+  // Simpan nama ke Firestore supaya ikut sinkron ke semua HP.
+  static Future<void> saveNameToCloud(String name) async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return;
+      await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
+        'name': name.trim(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+    } catch (e) {
+      debugPrint('Gagal simpan nama ke Firestore: $e');
+    }
+  }
+
+  // Ambil foto dari Firestore (sekali baca). Kosong kalau belum ada / gagal.
   static Future<String> loadPhotoFromCloud() async {
     try {
       final user = FirebaseAuth.instance.currentUser;
@@ -195,21 +211,79 @@ class _ProfileScreenState extends State<ProfileScreen> {
   // User yang sedang ditampilkan
   late UserProfile _currentUser;
 
+  // Listener realtime ke Firestore
+  StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _cloudSub;
+  bool _gotCloudSnapshot = false;
+
+  // Cache hasil decode base64 supaya tidak decode ulang tiap build()
+  String? _cachedB64Key;
+  ImageProvider? _cachedB64Provider;
+
   @override
   void initState() {
     super.initState();
     _currentUser = widget.user;
     _loadStoredAvatarOnStart();
+    _listenCloudProfile();
   }
 
-  // Muat foto tersimpan saat halaman dibuka / setelah logout-login
+  @override
+  void dispose() {
+    _cloudSub?.cancel();
+    super.dispose();
+  }
+
+  // Dengarkan perubahan profil di Firestore secara realtime.
+  // Siapa pun yang terakhir edit (dari HP mana pun), semua HP ikut berubah.
+  void _listenCloudProfile() {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    _cloudSub = FirebaseFirestore.instance
+        .collection('users')
+        .doc(user.uid)
+        .snapshots()
+        .listen(
+      (snap) {
+        final data = snap.data();
+        if (data == null || !mounted) return;
+
+        _gotCloudSnapshot = true;
+
+        final b64 = data['photoBase64'] as String?;
+        final cloudName = data['name'] as String?;
+
+        setState(() {
+          _currentUser = UserProfile(
+            name: (cloudName != null && cloudName.trim().isNotEmpty)
+                ? cloudName
+                : _currentUser.name,
+            email: _currentUser.email,
+            phone: _currentUser.phone,
+            avatarUrl: (b64 != null && b64.isNotEmpty)
+                ? 'b64:$b64'
+                : _currentUser.avatarUrl,
+            clientCode: _currentUser.clientCode,
+            accountNumber: _currentUser.accountNumber,
+            branch: _currentUser.branch,
+          );
+        });
+      },
+      onError: (e) => debugPrint('Listener profil error: $e'),
+    );
+  }
+
+  // Muat foto tersimpan (fallback lokal) saat halaman dibuka.
+  // Tidak menimpa data cloud kalau listener sudah menerima data.
   Future<void> _loadStoredAvatarOnStart() async {
     final savedProfile = await ProfileStorage.loadSavedProfile(
       fallbackName: widget.user.name,
       fallbackEmail: widget.user.email,
     );
 
-    if (mounted && savedProfile.avatarUrl.isNotEmpty) {
+    if (!mounted || _gotCloudSnapshot) return;
+
+    if (savedProfile.avatarUrl.isNotEmpty) {
       setState(() {
         _currentUser = UserProfile(
           name: savedProfile.name,
@@ -234,6 +308,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
 
     if (updatedUser != null) {
+      if (!mounted) return;
       setState(() {
         _currentUser = updatedUser;
       });
@@ -265,10 +340,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
       return null;
     }
 
-    // 2. Foto dari cloud (Firestore, base64)
+    // 2. Foto dari cloud (Firestore, base64) -> pakai cache
     if (cleanPath.startsWith('b64:')) {
+      if (_cachedB64Key == cleanPath && _cachedB64Provider != null) {
+        return _cachedB64Provider;
+      }
       try {
-        return MemoryImage(base64Decode(cleanPath.substring(4)));
+        final provider = MemoryImage(base64Decode(cleanPath.substring(4)));
+        _cachedB64Key = cleanPath;
+        _cachedB64Provider = provider;
+        return provider;
       } catch (_) {
         return null;
       }

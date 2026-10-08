@@ -5,7 +5,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'profile_screen.dart' show UserProfile, ProfileStorage;
 
-/// Halaman Edit Profil: Firebase Auth (nama) + Firestore (foto) + lokal
+/// Halaman Edit Profil: Firebase Auth (nama) + Firestore (nama & foto) + lokal
 class EditProfileScreen extends StatefulWidget {
   final UserProfile user;
   final Future<void> Function(UserProfile updatedUser)? onSave;
@@ -170,12 +170,13 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         }
       }
 
-      // 2. Perbarui nama di Firebase Auth (photoURL tidak diisi path lokal lagi)
+      // 2. Perbarui nama di Firebase Auth + Firestore (supaya ikut ke semua HP)
       final User? firebaseUser = FirebaseAuth.instance.currentUser;
       if (firebaseUser != null) {
         if (newName != firebaseUser.displayName) {
           await firebaseUser.updateDisplayName(newName);
         }
+        await ProfileStorage.saveNameToCloud(newName);
         await firebaseUser.reload();
       }
 
