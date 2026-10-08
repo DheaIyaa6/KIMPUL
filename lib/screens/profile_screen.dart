@@ -1,42 +1,62 @@
 import 'dart:io';
+import 'dart:convert';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:firebase_storage/firebase_storage.dart';
 import 'package:kimpul/screens/modals_screen.dart';
-import 'package:kimpul/screens/edit_profile_screen.dart'; 
+import 'package:kimpul/screens/edit_profile_screen.dart';
 import 'package:kimpul/screens/change_password_screen.dart';
 
 class ProfileStorage {
   static const String _keyName = 'profile_name';
   static const String _keyEmail = 'profile_email';
 
-  // 🌟 MENGUNCI KEY FOTO PROFIL DENGAN EMAIL USER
+  // Kunci foto lokal dikaitkan dengan email user
   static String _getAvatarKey(String email) {
     final cleanEmail = email.trim().toLowerCase();
     return 'profile_avatar_path_$cleanEmail';
   }
 
-  // 🌟 FUNGSI UPLOAD FOTO KE CLOUD FIREBASE STORAGE
-  static Future<String?> uploadImageToCloud(File imageFile, String userEmail) async {
+  // Simpan foto ke Firestore (base64), terikat ke akun (uid).
+  // Mengembalikan 'b64:<data>' kalau berhasil, null kalau gagal.
+  static Future<String?> savePhotoToCloud(File imageFile) async {
     try {
-      final cleanEmail = userEmail.trim().toLowerCase();
-      // Buat path penyimpanan di Firebase Storage berdasarkan email user
-      final ref = FirebaseStorage.instance
-          .ref()
-          .child('profile_photos')
-          .child('$cleanEmail.jpg');
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return null;
 
-      // Upload file
-      await ref.putFile(imageFile);
+      final bytes = await imageFile.readAsBytes();
+      if (bytes.length > 700 * 1024) return null; // batas aman dokumen 1 MB
 
-      // Ambil URL publik HTTPS yang bisa diakses dari HP mana saja
-      final String downloadUrl = await ref.getDownloadURL();
-      return downloadUrl;
+      final b64 = base64Encode(bytes);
+      await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
+        'photoBase64': b64,
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+
+      return 'b64:$b64';
     } catch (e) {
-      debugPrint("Gagal upload foto ke Firebase Storage: $e");
+      debugPrint('Gagal simpan foto ke Firestore: $e');
       return null;
+    }
+  }
+
+  // Ambil foto dari Firestore. Kosong kalau belum ada / gagal.
+  static Future<String> loadPhotoFromCloud() async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return '';
+      final snap = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .get();
+      final b64 = snap.data()?['photoBase64'] as String?;
+      if (b64 == null || b64.isEmpty) return '';
+      return 'b64:$b64';
+    } catch (e) {
+      debugPrint('Gagal ambil foto dari Firestore: $e');
+      return '';
     }
   }
 
@@ -49,7 +69,10 @@ class ProfileStorage {
     await prefs.setString(_keyName, name.trim());
     await prefs.setString(_keyEmail, email.trim());
 
-    if (avatarPath != null && avatarPath.trim().isNotEmpty) {
+    // Hanya simpan path lokal, jangan simpan teks base64
+    if (avatarPath != null &&
+        avatarPath.trim().isNotEmpty &&
+        !avatarPath.startsWith('b64:')) {
       await prefs.setString(_getAvatarKey(email), avatarPath.trim());
     }
   }
@@ -67,10 +90,18 @@ class ProfileStorage {
         prefs.getString(_keyName) ??
         fallbackName;
 
-    // Ambil foto dari SharedPreferences khusus email ini, atau dari photoURL Firebase
-    String savedAvatar = prefs.getString(_getAvatarKey(savedEmail)) ?? '';
-    if (savedAvatar.isEmpty && firebaseUser?.photoURL != null) {
-      savedAvatar = firebaseUser!.photoURL!;
+    // Prioritas: cloud (ikut ke semua HP) -> lokal -> photoURL berupa http
+    String savedAvatar = await loadPhotoFromCloud();
+
+    if (savedAvatar.isEmpty) {
+      savedAvatar = prefs.getString(_getAvatarKey(savedEmail)) ?? '';
+    }
+
+    if (savedAvatar.isEmpty) {
+      final photoUrl = firebaseUser?.photoURL ?? '';
+      if (photoUrl.startsWith('http://') || photoUrl.startsWith('https://')) {
+        savedAvatar = photoUrl;
+      }
     }
 
     return UserProfile(
@@ -82,22 +113,22 @@ class ProfileStorage {
 
   static Future<void> saveAvatarPath(String email, String? path) async {
     if (path == null || path.trim().isEmpty) return;
+    if (path.startsWith('b64:')) return;
 
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_getAvatarKey(email), path.trim());
   }
 
   static Future<String> getSavedAvatarPath(String email) async {
+    final cloud = await loadPhotoFromCloud();
+    if (cloud.isNotEmpty) return cloud;
+
     final prefs = await SharedPreferences.getInstance();
-    final User? firebaseUser = FirebaseAuth.instance.currentUser;
-
-    final localPath = prefs.getString(_getAvatarKey(email)) ?? '';
-    if (localPath.isNotEmpty) return localPath;
-
-    return firebaseUser?.photoURL ?? '';
+    return prefs.getString(_getAvatarKey(email)) ?? '';
   }
 
-  static Future<String?> persistPickedImage(File sourceFile, {String? email}) async {
+  static Future<String?> persistPickedImage(File sourceFile,
+      {String? email}) async {
     try {
       final directory = await getApplicationDocumentsDirectory();
       final fileName = 'profile_${DateTime.now().millisecondsSinceEpoch}.jpg';
@@ -164,9 +195,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
   // User yang sedang ditampilkan
   late UserProfile _currentUser;
 
-  // Base URL server Laragon
-  static const String _serverBaseUrl = "http://192.168.1.207/api_flutter/uploads";
-
   @override
   void initState() {
     super.initState();
@@ -174,7 +202,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     _loadStoredAvatarOnStart();
   }
 
-  // 🌟 MUAT FOTO TERSIMPAN SAAT HALAMAN DIBUKA / SETELAH LOGOUT-LOGIN
+  // Muat foto tersimpan saat halaman dibuka / setelah logout-login
   Future<void> _loadStoredAvatarOnStart() async {
     final savedProfile = await ProfileStorage.loadSavedProfile(
       fallbackName: widget.user.name,
@@ -226,31 +254,44 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  // 🌟 HELPER FOTO: Menentukan ImageProvider yang tepat
+  // Menentukan ImageProvider yang tepat
   ImageProvider? _getAvatarProvider(String path) {
     final cleanPath = path.trim();
 
-    // 1. Jika path kosong, null, atau URL dummy internet, kembalikan null (akan tampil ikon person)
-    if (cleanPath.isEmpty || cleanPath == 'null' || cleanPath.contains('pravatar.cc')) {
+    // 1. Kosong / null / URL dummy -> ikon person
+    if (cleanPath.isEmpty ||
+        cleanPath == 'null' ||
+        cleanPath.contains('pravatar.cc')) {
       return null;
     }
 
-    // 2. Jika berupa path file lokal dari galeri/kamera HP pengguna
-    if (cleanPath.startsWith('/') || cleanPath.startsWith('file://') || cleanPath.contains(':\\')) {
+    // 2. Foto dari cloud (Firestore, base64)
+    if (cleanPath.startsWith('b64:')) {
+      try {
+        return MemoryImage(base64Decode(cleanPath.substring(4)));
+      } catch (_) {
+        return null;
+      }
+    }
+
+    // 3. Path file lokal di HP ini. Kalau file tidak ada (misal di HP lain), kosong.
+    if (cleanPath.startsWith('/') ||
+        cleanPath.startsWith('file://') ||
+        cleanPath.contains(':\\')) {
       final file = File(cleanPath.replaceFirst('file://', ''));
       if (file.existsSync()) {
         return FileImage(file);
       }
+      return null;
     }
 
-    // 3. Jika berupa URL HTTP/HTTPS lengkap dari internet/server (Termasuk Firebase Storage)
+    // 4. URL http/https
     if (cleanPath.startsWith('http://') || cleanPath.startsWith('https://')) {
-      return NetworkImage('$cleanPath?v=${DateTime.now().millisecondsSinceEpoch}');
+      return NetworkImage(
+          '$cleanPath?v=${DateTime.now().millisecondsSinceEpoch}');
     }
 
-    // 4. Jika hanya berupa nama file dari DB MySQL (misal: "profile_1_1726000000.jpg")
-    final serverImageUrl = '$_serverBaseUrl/$cleanPath?v=${DateTime.now().millisecondsSinceEpoch}';
-    return NetworkImage(serverImageUrl);
+    return null;
   }
 
   @override
@@ -286,7 +327,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
               children: [
                 Stack(
                   children: [
-                    // CIRCLE AVATAR (Mendukung Foto Firebase Storage, Server Laragon, File HP, & Ikon Bawaan)
                     CircleAvatar(
                       radius: 40,
                       backgroundColor: const Color(0xFFE2E8F0),
@@ -351,7 +391,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 const SizedBox(height: 2),
                 Text(
                   _currentUser.email,
-                  style: const TextStyle(fontSize: 13, color: Color(0xFF64748B)),
+                  style:
+                      const TextStyle(fontSize: 13, color: Color(0xFF64748B)),
                 ),
               ],
             ),
@@ -367,7 +408,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
             child: Column(
               children: [
-                // 1. Edit Profil
                 _buildMenuItem(
                   icon: Icons.person_outlined,
                   title: 'Edit Profil',
@@ -375,8 +415,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   onTap: _navigateToEditProfile,
                 ),
                 const Divider(height: 1, color: Color(0xFFF1F5F9)),
-
-                // 2. Ubah Kata Sandi
                 _buildMenuItem(
                   icon: Icons.lock_reset_rounded,
                   title: 'Ubah Kata Sandi',
@@ -384,8 +422,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   onTap: _navigateToChangePassword,
                 ),
                 const Divider(height: 1, color: Color(0xFFF1F5F9)),
-
-                // 3. Layanan Pelanggan (CS)
                 _buildMenuItem(
                   icon: Icons.support_agent_rounded,
                   title: 'Layanan Pelanggan (CS)',
@@ -395,8 +431,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   },
                 ),
                 const Divider(height: 1, color: Color(0xFFF1F5F9)),
-
-                // 4. Privasi Data Perhitungan
                 InkWell(
                   onTap: () {
                     setState(() {
@@ -460,7 +494,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
           ),
 
-          // Dropdown Info Privasi Data Perhitungan saat Panah Ditekan
           if (_showPrivacyInfo) ...[
             const SizedBox(height: 6),
             Container(
@@ -496,7 +529,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ],
           const SizedBox(height: 20),
 
-          // BUTTON KELUAR AKUN
           if (widget.onReplaySplash != null) ...[
             SizedBox(
               width: double.infinity,
@@ -534,8 +566,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 padding: const EdgeInsets.symmetric(vertical: 12),
                 shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12)),
-                textStyle: const TextStyle(
-                    fontSize: 13, fontWeight: FontWeight.w600),
+                textStyle:
+                    const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
               ),
             ),
           ),
