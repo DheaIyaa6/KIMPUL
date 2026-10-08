@@ -212,6 +212,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   late UserProfile _currentUser;
 
   // Listener realtime ke Firestore
+  StreamSubscription<User?>? _authSub;
   StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _cloudSub;
   bool _gotCloudSnapshot = false;
 
@@ -229,48 +230,59 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   @override
   void dispose() {
+    _authSub?.cancel();
     _cloudSub?.cancel();
     super.dispose();
   }
 
   // Dengarkan perubahan profil di Firestore secara realtime.
-  // Siapa pun yang terakhir edit (dari HP mana pun), semua HP ikut berubah.
+  // Menunggu sampai user login siap (authStateChanges), lalu pasang listener.
   void _listenCloudProfile() {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return;
+    _authSub = FirebaseAuth.instance.authStateChanges().listen((user) {
+      debugPrint('PROFIL auth uid=${user?.uid} email=${user?.email}');
 
-    _cloudSub = FirebaseFirestore.instance
-        .collection('users')
-        .doc(user.uid)
-        .snapshots()
-        .listen(
-      (snap) {
-        final data = snap.data();
-        if (data == null || !mounted) return;
+      _cloudSub?.cancel();
+      _cloudSub = null;
+      if (user == null) return;
 
-        _gotCloudSnapshot = true;
+      _cloudSub = FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .snapshots()
+          .listen(
+        (snap) {
+          final data = snap.data();
+          final b64 = data?['photoBase64'] as String?;
+          debugPrint('PROFIL snapshot exists=${snap.exists} '
+              'fromCache=${snap.metadata.isFromCache} '
+              'panjangFoto=${b64?.length}');
 
-        final b64 = data['photoBase64'] as String?;
-        final cloudName = data['name'] as String?;
+          if (data == null || !mounted) return;
+          _gotCloudSnapshot = true;
 
-        setState(() {
-          _currentUser = UserProfile(
-            name: (cloudName != null && cloudName.trim().isNotEmpty)
-                ? cloudName
-                : _currentUser.name,
-            email: _currentUser.email,
-            phone: _currentUser.phone,
-            avatarUrl: (b64 != null && b64.isNotEmpty)
-                ? 'b64:$b64'
-                : _currentUser.avatarUrl,
-            clientCode: _currentUser.clientCode,
-            accountNumber: _currentUser.accountNumber,
-            branch: _currentUser.branch,
-          );
-        });
-      },
-      onError: (e) => debugPrint('Listener profil error: $e'),
-    );
+          final cloudName = data['name'] as String?;
+          setState(() {
+            _currentUser = UserProfile(
+              name: (cloudName != null && cloudName.trim().isNotEmpty)
+                  ? cloudName
+                  : _currentUser.name,
+              email: _currentUser.email,
+              phone: _currentUser.phone,
+              avatarUrl: (b64 != null && b64.isNotEmpty)
+                  ? 'b64:$b64'
+                  : _currentUser.avatarUrl,
+              clientCode: _currentUser.clientCode,
+              accountNumber: _currentUser.accountNumber,
+              branch: _currentUser.branch,
+            );
+          });
+        },
+        onError: (e) {
+          debugPrint('PROFIL ERROR: $e');
+          if (mounted) widget.onShowToast('Gagal sinkron profil: $e');
+        },
+      );
+    });
   }
 
   // Muat foto tersimpan (fallback lokal) saat halaman dibuka.
@@ -350,7 +362,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
         _cachedB64Key = cleanPath;
         _cachedB64Provider = provider;
         return provider;
-      } catch (_) {
+      } catch (e) {
+        debugPrint('PROFIL decode gagal: $e');
         return null;
       }
     }
@@ -413,7 +426,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       backgroundColor: const Color(0xFFE2E8F0),
                       backgroundImage: avatarImageProvider,
                       onBackgroundImageError: avatarImageProvider != null
-                          ? (exception, stackTrace) {}
+                          ? (e, s) => debugPrint('PROFIL gambar gagal: $e')
                           : null,
                       child: avatarImageProvider == null
                           ? const Icon(
@@ -474,6 +487,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   _currentUser.email,
                   style:
                       const TextStyle(fontSize: 13, color: Color(0xFF64748B)),
+                ),
+                // TODO: HAPUS setelah selesai debug
+                Text(
+                  'DEBUG: ${_currentUser.avatarUrl.length > 40 ? _currentUser.avatarUrl.substring(0, 40) : _currentUser.avatarUrl} (len=${_currentUser.avatarUrl.length})',
+                  style: const TextStyle(fontSize: 10, color: Colors.red),
                 ),
               ],
             ),
