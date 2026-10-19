@@ -1,10 +1,11 @@
 import 'dart:io';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'profile_screen.dart' show UserProfile, ProfileStorage;
 
-/// Halaman Edit Profil — terhubung dengan Firebase Auth & Penyimpanan Lokal
+/// Halaman Edit Profil: Firebase Auth (nama) + Firestore (nama & foto) + lokal
 class EditProfileScreen extends StatefulWidget {
   final UserProfile user;
   final Future<void> Function(UserProfile updatedUser)? onSave;
@@ -42,14 +43,14 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     super.dispose();
   }
 
-  // Fungsi Memilih Foto dari Galeri atau Kamera
+  // Pilih foto dari galeri / kamera (dikecilkan supaya muat di Firestore)
   Future<void> _pickImage(ImageSource source) async {
     try {
       final XFile? pickedFile = await _picker.pickImage(
         source: source,
-        maxWidth: 800,
-        maxHeight: 800,
-        imageQuality: 85,
+        maxWidth: 400,
+        maxHeight: 400,
+        imageQuality: 70,
       );
 
       if (pickedFile != null) {
@@ -65,7 +66,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     }
   }
 
-  // Bottom Sheet Pilihan Sumber Foto
   void _showImagePickerModal() {
     showModalBottomSheet(
       context: context,
@@ -135,7 +135,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     return null;
   }
 
-  // 🌟 FUNGSI SIMPAN PERUBAHAN KE FIREBASE & LOKAL STORAGE
+  // Simpan perubahan
   Future<void> _handleSave() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -144,20 +144,33 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     try {
       final String newName = _nameController.text.trim();
       String persistedAvatarPath = widget.user.avatarUrl;
+      String? newLocalPath;
 
-      // 1. Kalau ada foto baru yang dipilih, simpan permanen di penyimpanan
-      //    lokal HP (bukan sekadar cache sementara dari image_picker).
+      // 1. Foto baru: simpan lokal + kirim ke cloud (Firestore)
       if (_selectedImageFile != null) {
-        final copiedPath = await ProfileStorage.persistPickedImage(
+        newLocalPath = await ProfileStorage.persistPickedImage(
           _selectedImageFile!,
           email: widget.user.email,
         );
-        if (copiedPath != null) {
-          persistedAvatarPath = copiedPath;
+
+        final cloudAvatar =
+            await ProfileStorage.savePhotoToCloud(_selectedImageFile!);
+        if (cloudAvatar != null) {
+          persistedAvatarPath = cloudAvatar;
+        } else {
+          if (newLocalPath != null) persistedAvatarPath = newLocalPath;
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text(
+                    'Foto tersimpan di HP ini saja (gagal kirim ke cloud).'),
+              ),
+            );
+          }
         }
       }
 
-      // 2. Perbarui Display Name & Photo URL di Firebase Auth User.
+      // 2. Perbarui nama di Firebase Auth + Firestore (supaya ikut ke semua HP).
       //    Firebase Auth hanya menerima URL http/https, bukan path file lokal,
       //    jadi updatePhotoURL cuma dipanggil kalau avatarnya memang URL valid.
       final User? firebaseUser = FirebaseAuth.instance.currentUser;
@@ -169,10 +182,11 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
             persistedAvatarPath.startsWith('https://')) {
           await firebaseUser.updatePhotoURL(persistedAvatarPath);
         }
+        await ProfileStorage.saveNameToCloud(newName);
         await firebaseUser.reload();
       }
 
-      // 3. Buat objek UserProfile terevisi
+      // 3. Objek UserProfile terbaru
       final updatedUser = UserProfile(
         name: newName,
         email: widget.user.email,
@@ -183,11 +197,11 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         branch: widget.user.branch,
       );
 
-      // 4. Simpan ke local storage HP khusus terikat email ini
+      // 4. Simpan nama + path foto lokal (bukan teks base64) di HP ini
       await ProfileStorage.saveLoginProfile(
         name: updatedUser.name,
         email: updatedUser.email,
-        avatarPath: updatedUser.avatarUrl,
+        avatarPath: newLocalPath,
       );
 
       if (widget.onSave != null) {
@@ -209,23 +223,32 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     }
   }
 
-  // 🌟 HELPER FOTO: Menentukan ImageProvider Avatar
+  // Menentukan ImageProvider avatar
   ImageProvider? _getAvatarImage() {
-    // 1. Jika pengguna baru saja memilih foto dari kamera/galeri HP
+    // 1. Foto yang baru dipilih
     if (_selectedImageFile != null) {
       return FileImage(_selectedImageFile!);
     }
 
     final avatarPath = widget.user.avatarUrl.trim();
 
-    // 2. Jika kosong atau URL dummy internet yang tidak valid
+    // 2. Kosong / dummy
     if (avatarPath.isEmpty ||
         avatarPath == 'null' ||
         avatarPath.contains('pravatar.cc')) {
       return null;
     }
 
-    // 3. Jika berupa path file lokal di HP
+    // 3. Foto dari cloud (base64)
+    if (avatarPath.startsWith('b64:')) {
+      try {
+        return MemoryImage(base64Decode(avatarPath.substring(4)));
+      } catch (_) {
+        return null;
+      }
+    }
+
+    // 4. Path file lokal
     if (avatarPath.startsWith('/') ||
         avatarPath.startsWith('file://') ||
         avatarPath.contains(':\\')) {
@@ -234,9 +257,10 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       if (file.existsSync()) {
         return FileImage(file);
       }
+      return null;
     }
 
-    // 4. Jika berupa URL HTTP/HTTPS
+    // 5. URL http/https
     if (avatarPath.startsWith('http://') || avatarPath.startsWith('https://')) {
       return NetworkImage(
           '$avatarPath?v=${DateTime.now().millisecondsSinceEpoch}');
@@ -281,6 +305,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                         radius: 44,
                         backgroundColor: const Color(0xFFE2E8F0),
                         backgroundImage: avatarImage,
+                        onBackgroundImageError:
+                            avatarImage != null ? (e, s) {} : null,
                         child: avatarImage == null
                             ? const Icon(
                                 Icons.person_rounded,
@@ -316,7 +342,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
               ),
               const SizedBox(height: 28),
 
-              // INPUT NAMA LENGKAP (Dapat Diisi/Diedit)
               _buildLabel('Nama Lengkap'),
               _buildTextField(
                 controller: _nameController,
@@ -327,7 +352,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
               ),
               const SizedBox(height: 16),
 
-              // INPUT EMAIL (Read-Only)
               _buildLabel('Email'),
               _buildTextField(
                 controller: _emailController,
@@ -339,7 +363,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
               ),
               const SizedBox(height: 32),
 
-              // TOMBOL SIMPAN PERUBAHAN
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
