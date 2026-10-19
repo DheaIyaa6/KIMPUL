@@ -1,8 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:url_launcher/url_launcher.dart';
-import 'package:webview_flutter/webview_flutter.dart';
 
 import 'package:kimpul/services/api_service.dart';
 import 'package:kimpul/screens/calculatorhub_screen.dart';
@@ -75,7 +73,7 @@ class _HomeScreenState extends State<HomeScreen> {
   late UserProfile _userProfile;
 
   // FUNGSI FETCH LIVE NEWS VIA API SERVICE
-    Future<void> _fetchLiveNews() async {
+  Future<void> _fetchLiveNews() async {
     try {
       final fetchedItems = await ApiService.getTradingViewNews();
       if (!mounted) return;
@@ -174,7 +172,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
     _newsPageController = PageController(initialPage: 0);
 
-        // Fetch Berita Live saat Pertama Dimuat
+    // Fetch Berita Live saat Pertama Dimuat
     _fetchLiveNews();
 
     // Refresh berita otomatis tiap 5 menit
