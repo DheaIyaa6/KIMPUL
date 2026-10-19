@@ -170,11 +170,17 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         }
       }
 
-      // 2. Perbarui nama di Firebase Auth + Firestore (supaya ikut ke semua HP)
+      // 2. Perbarui nama di Firebase Auth + Firestore (supaya ikut ke semua HP).
+      //    Firebase Auth hanya menerima URL http/https, bukan path file lokal,
+      //    jadi updatePhotoURL cuma dipanggil kalau avatarnya memang URL valid.
       final User? firebaseUser = FirebaseAuth.instance.currentUser;
       if (firebaseUser != null) {
         if (newName != firebaseUser.displayName) {
           await firebaseUser.updateDisplayName(newName);
+        }
+        if (persistedAvatarPath.startsWith('http://') ||
+            persistedAvatarPath.startsWith('https://')) {
+          await firebaseUser.updatePhotoURL(persistedAvatarPath);
         }
         await ProfileStorage.saveNameToCloud(newName);
         await firebaseUser.reload();
