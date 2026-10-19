@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 // Enum untuk navigasi tipe kalkulator
-enum CalcView { pivot, gold, nest }
+enum CalcView { pivot, gold, nest, callMargin }
 
 class CalcHubScreen extends StatelessWidget {
   final Function(CalcView view) onSelectCalc;
@@ -32,7 +32,7 @@ class CalcHubScreen extends StatelessWidget {
           ),
           const SizedBox(height: 2),
           const Text(
-            'Perhitungan teknikal pivot point dan simulasi komoditas emas batangan',
+            'Perhitungan teknikal pivot point, call margin, dan simulasi komoditas emas batangan',
             style: TextStyle(fontSize: 13, color: Color(0xFF64748B)),
           ),
           const SizedBox(height: 16),
@@ -53,7 +53,20 @@ class CalcHubScreen extends StatelessWidget {
               ),
               const SizedBox(height: 14),
 
-              // Card 2: Kalkulator Emas Fisik
+              // Card 2: Call Margin Calculator
+              _buildCalculatorCard(
+                context,
+                title: 'Call Margin Calculator',
+                subtitle:
+                    'Hitung batas call margin (dalam poin) dan level harga untuk posisi Buy atau Sell pada XUL, HKK, dan JPK berdasarkan equity, jumlah lot, dan harga masuk.',
+                icon: Icons.shield_outlined,
+                buttonText: 'Buka Kalkulator Call Margin',
+                primaryColor: primaryColor,
+                onTap: () => onSelectCalc(CalcView.callMargin),
+              ),
+              const SizedBox(height: 14),
+
+              // Card 3: Kalkulator Emas Fisik
               _buildCalculatorCard(
                 context,
                 title: 'Kalkulator Emas Fisik',
@@ -66,7 +79,7 @@ class CalcHubScreen extends StatelessWidget {
               ),
               const SizedBox(height: 14),
 
-              // Card 3: Nest Calculator
+              // Card 4: Nest Calculator
               _buildCalculatorCard(
                 context,
                 title: 'Nest Calculator',

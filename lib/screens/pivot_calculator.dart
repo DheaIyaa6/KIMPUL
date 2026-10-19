@@ -1,4 +1,11 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:http/http.dart' as http;
+
+import 'package:kimpul/screens/prev_day_service.dart';
+import 'package:kimpul/screens/tradingview_screen.dart';
 
 // Model Data Kalkulasi Pivot
 class PivotCalculation {
@@ -47,6 +54,48 @@ class PivotCalculation {
   });
 }
 
+// Produk yang bisa dipilih di kalkulator
+class _PivotProduct {
+  final String label; // XUL / HKK / JPK
+  final String subtitle;
+  final String nmSymbol; // simbol Newsmaker (data live)
+  final String tvSymbol; // simbol TradingView (grafik)
+  final String yahooSymbol; // sumber High/Low/Close kemarin (mode otomatis)
+  final String unit; // satuan harga
+  final int decimals;
+  final IconData icon;
+
+  const _PivotProduct({
+    required this.label,
+    required this.subtitle,
+    required this.nmSymbol,
+    required this.tvSymbol,
+    required this.yahooSymbol,
+    required this.unit,
+    required this.decimals,
+    required this.icon,
+  });
+}
+
+// Rincian langkah hitung satu level (dipakai di bottom sheet)
+class _LevelDetail {
+  final String title;
+  final String formula;
+  final List<String> steps;
+  final double value;
+  final Color color;
+  final String note;
+
+  const _LevelDetail({
+    required this.title,
+    required this.formula,
+    required this.steps,
+    required this.value,
+    required this.color,
+    required this.note,
+  });
+}
+
 class PivotCalculator extends StatefulWidget {
   final VoidCallback onBack;
   final Function(PivotCalculation calc) onSaveHistory;
@@ -66,22 +115,92 @@ class PivotCalculator extends StatefulWidget {
 }
 
 class _PivotCalculatorState extends State<PivotCalculator> {
+  static const String _quoteUrl = 'https://www.newsmaker.id/api/live-quotes';
+  static const Color _buyColor = Color(0xFF059669);
+  static const Color _sellColor = Color(0xFFE11D48);
+  static const Color _neutralColor = Color(0xFF64748B);
+
+  static const List<_PivotProduct> _products = [
+    _PivotProduct(
+      label: 'XUL',
+      subtitle: 'Gold / USD',
+      nmSymbol: 'XUL10',
+      tvSymbol: 'OANDA:XAUUSD',
+      yahooSymbol: 'GC=F',
+      unit: 'USD',
+      decimals: 2,
+      icon: Icons.monetization_on_rounded,
+    ),
+    _PivotProduct(
+      label: 'HKK',
+      subtitle: 'Hang Seng',
+      nmSymbol: 'HKK50_BBJ',
+      tvSymbol: 'OANDA:HK33HKD',
+      yahooSymbol: '^HSI',
+      unit: 'poin',
+      decimals: 0,
+      icon: Icons.bar_chart_rounded,
+    ),
+    _PivotProduct(
+      label: 'JPK',
+      subtitle: 'Nikkei 225',
+      nmSymbol: 'JPK50_BBJ',
+      tvSymbol: 'OANDA:JP225USD',
+      yahooSymbol: '^N225',
+      unit: 'poin',
+      decimals: 0,
+      icon: Icons.show_chart_rounded,
+    ),
+  ];
+
   late TextEditingController _highController;
   late TextEditingController _lowController;
   late TextEditingController _closeController;
+  late TextEditingController _openController;
+
+  int _productIndex = 0;
+  PivotCalculation? _result;
+  double? _resultOpen; // Open yang dipakai saat tombol Hitung ditekan
 
   bool _showFormula = true;
   bool _savedSuccess = false;
 
+  // Mode input: otomatis (data kemarin diambil sendiri) atau manual
+  bool _autoMode = true;
+  bool _loadingPrev = false;
+  String? _prevError;
+  String _prevInfo = '';
+
+  // Data Open live
+  bool _loadingOpen = false;
+  bool _openError = false;
+  String _liveTime = '';
+
+  _PivotProduct get _product => _products[_productIndex];
+  String get _unit => _product.unit;
+
   @override
   void initState() {
     super.initState();
-    _highController = TextEditingController(
-        text: (widget.initialValues?.high ?? 2345.50).toStringAsFixed(2));
-    _lowController = TextEditingController(
-        text: (widget.initialValues?.low ?? 2310.20).toStringAsFixed(2));
-    _closeController = TextEditingController(
-        text: (widget.initialValues?.close ?? 2338.80).toStringAsFixed(2));
+    final init = widget.initialValues;
+    _highController =
+        TextEditingController(text: init != null ? _f(init.high) : '');
+    _lowController =
+        TextEditingController(text: init != null ? _f(init.low) : '');
+    _closeController =
+        TextEditingController(text: init != null ? _f(init.close) : '');
+    _openController = TextEditingController();
+
+    if (init != null) {
+      final idx = _products.indexWhere((p) => p.label == init.pair);
+      if (idx >= 0) _productIndex = idx;
+    }
+
+    // Kalau dibuka dari riwayat (hitung ulang), pakai mode manual
+    _autoMode = init == null;
+
+    _fetchOpen();
+    if (_autoMode) _loadPrevDay();
   }
 
   @override
@@ -89,31 +208,142 @@ class _PivotCalculatorState extends State<PivotCalculator> {
     _highController.dispose();
     _lowController.dispose();
     _closeController.dispose();
+    _openController.dispose();
     super.dispose();
+  }
+
+  // ---------- Helper ----------
+
+  String _f(double v) => v.toStringAsFixed(2);
+  String _signed(double v) => v >= 0 ? '+${_f(v)}' : _f(v);
+  double? _parse(String s) => double.tryParse(s.trim().replaceAll(',', '.'));
+
+  void _snack(String msg) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+  }
+
+  // ---------- Data live (Open hari ini) ----------
+
+  Future<void> _fetchOpen() async {
+    final product = _product;
+    setState(() {
+      _loadingOpen = true;
+      _openError = false;
+    });
+
+    try {
+      final res = await http
+          .get(Uri.parse(_quoteUrl), headers: {'Accept': 'application/json'})
+          .timeout(const Duration(seconds: 8));
+      if (res.statusCode != 200) {
+        throw Exception('status ${res.statusCode}');
+      }
+
+      final body = jsonDecode(res.body) as Map<String, dynamic>;
+      final list = (body['data'] as List?) ?? [];
+
+      Map<String, dynamic>? quote;
+      for (final e in list) {
+        if (e is Map<String, dynamic> &&
+            (e['symbol'] ?? '').toString() == product.nmSymbol) {
+          quote = e;
+          break;
+        }
+      }
+
+      final double? open =
+          quote == null ? null : double.tryParse(quote['open'].toString());
+
+      if (!mounted) return;
+      // Abaikan hasil kalau user sudah pindah produk saat menunggu
+      if (product.label != _product.label) return;
+
+      setState(() {
+        _loadingOpen = false;
+        if (open != null) {
+          _openController.text = open.toStringAsFixed(product.decimals);
+          _liveTime = (quote?['time'] ?? '').toString();
+          _openError = false;
+        } else {
+          _openError = true;
+        }
+      });
+    } catch (_) {
+      if (!mounted) return;
+      if (product.label != _product.label) return;
+      setState(() {
+        _loadingOpen = false;
+        _openError = true;
+      });
+    }
+  }
+
+  // ---------- Data kemarin (High/Low/Close) untuk mode otomatis ----------
+
+  Future<void> _loadPrevDay() async {
+    final product = _product;
+    setState(() {
+      _loadingPrev = true;
+      _prevError = null;
+    });
+    try {
+      final d = await PrevDayService.fetch(product.yahooSymbol);
+      if (!mounted || product.label != _product.label) return;
+      setState(() {
+        _highController.text = d.high.toStringAsFixed(2);
+        _lowController.text = d.low.toStringAsFixed(2);
+        _closeController.text = d.close.toStringAsFixed(2);
+        _prevInfo = 'Data kemarin (${d.date}) dari Yahoo Finance';
+        _loadingPrev = false;
+      });
+    } catch (_) {
+      if (!mounted || product.label != _product.label) return;
+      setState(() {
+        _loadingPrev = false;
+        _prevError =
+            'Gagal ambil data kemarin. Coba lagi atau pindah ke mode Manual.';
+      });
+    }
+  }
+
+  void _selectProduct(int index) {
+    if (index == _productIndex) return;
+    setState(() {
+      _productIndex = index;
+      _highController.clear();
+      _lowController.clear();
+      _closeController.clear();
+      _openController.clear();
+      _liveTime = '';
+      _prevInfo = '';
+      _prevError = null;
+      _result = null;
+      _savedSuccess = false;
+    });
+    _fetchOpen();
+    if (_autoMode) _loadPrevDay();
   }
 
   void _handleReset() {
     setState(() {
-      _highController.text = '2345.50';
-      _lowController.text = '2310.20';
-      _closeController.text = '2338.80';
+      _highController.clear();
+      _lowController.clear();
+      _closeController.clear();
+      _result = null;
     });
+    if (_autoMode) _loadPrevDay();
   }
 
-  PivotCalculation _calculate() {
-    final double high = double.tryParse(_highController.text) ?? 0.0;
-    final double low = double.tryParse(_lowController.text) ?? 0.0;
-    final double close = double.tryParse(_closeController.text) ?? 0.0;
+  // ---------- Perhitungan ----------
 
+  PivotCalculation _calculate(double high, double low, double close) {
     final double pp = double.parse(((high + low + close) / 3).toStringAsFixed(2));
     final double r1 = double.parse(((2 * pp) - low).toStringAsFixed(2));
     final double s1 = double.parse(((2 * pp) - high).toStringAsFixed(2));
     final double r2 = double.parse((pp + (high - low)).toStringAsFixed(2));
     final double s2 = double.parse((pp - (high - low)).toStringAsFixed(2));
-    final double r3 = double.parse((high + 2 * (pp - low)).toStringAsFixed(2));
-    final double s3 = double.parse((low - 2 * (high - pp)).toStringAsFixed(2));
-    
-    // Perhitungan R4 dan S4 sesuai instruksi: R4 = PP + (High - Low) * 3 & S4 = PP - (High - Low) * 3
+    final double r3 = double.parse((pp + (high - low) * 2).toStringAsFixed(2));
+    final double s3 = double.parse((pp - (high - low) * 2).toStringAsFixed(2));
     final double r4 = double.parse((pp + (high - low) * 3).toStringAsFixed(2));
     final double s4 = double.parse((pp - (high - low) * 3).toStringAsFixed(2));
 
@@ -137,7 +367,7 @@ class _PivotCalculatorState extends State<PivotCalculator> {
       timestamp: now.toIso8601String(),
       formattedDate: formattedDate,
       formattedTime: formattedTime,
-      pair: 'XAU/USD',
+      pair: _product.label,
       high: high,
       low: low,
       close: close,
@@ -155,8 +385,40 @@ class _PivotCalculatorState extends State<PivotCalculator> {
     );
   }
 
+  Future<void> _handleCalculate() async {
+    FocusScope.of(context).unfocus();
+
+    // Mode otomatis: segarkan data kemarin dan Open dulu, baru hitung
+    if (_autoMode) {
+      await Future.wait([_loadPrevDay(), _fetchOpen()]);
+      if (!mounted) return;
+    }
+
+    final double? high = _parse(_highController.text);
+    final double? low = _parse(_lowController.text);
+    final double? close = _parse(_closeController.text);
+
+    if (high == null || low == null || close == null) {
+      _snack(_autoMode
+          ? 'Data kemarin belum berhasil diambil. Coba lagi atau pakai mode Manual.'
+          : 'Isi High, Low, dan Close kemarin dengan angka yang valid.');
+      return;
+    }
+    if (high < low) {
+      _snack('High tidak boleh lebih kecil dari Low.');
+      return;
+    }
+
+    setState(() {
+      _result = _calculate(high, low, close);
+      _resultOpen = _parse(_openController.text);
+      _savedSuccess = false;
+    });
+  }
+
   void _handleSave() async {
-    final calc = _calculate();
+    final calc = _result;
+    if (calc == null) return;
     widget.onSaveHistory(calc);
     setState(() {
       _savedSuccess = true;
@@ -169,10 +431,409 @@ class _PivotCalculatorState extends State<PivotCalculator> {
     }
   }
 
+  void _openChart() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => TradingViewScreen(
+          symbol: _product.tvSymbol,
+          title: _product.label,
+        ),
+      ),
+    );
+  }
+
+  // ---------- Rincian langkah hitung (bisa diketuk) ----------
+
+  _LevelDetail _detailFor(String key, PivotCalculation c, Color primaryColor) {
+    const Color supportColor = Color(0xFF047857);
+    final double h = c.high;
+    final double l = c.low;
+    final double cl = c.close;
+    final double pp = c.pp;
+    final double range = h - l;
+
+    switch (key) {
+      case 'PP':
+        return _LevelDetail(
+          title: 'Pivot Point (PP)',
+          formula: 'PP = (High + Low + Close) / 3',
+          steps: [
+            '= (${_f(h)} + ${_f(l)} + ${_f(cl)}) / 3',
+            '= ${_f(h + l + cl)} / 3',
+          ],
+          value: pp,
+          color: primaryColor,
+          note:
+              'Harga wajar / rata-rata dari High, Low, dan Close hari kemarin. Jika PP di atas harga open hari ini = Buy, jika PP di bawah harga open = Sell.',
+        );
+      case 'R1':
+        return _LevelDetail(
+          title: 'R1 Minor',
+          formula: 'R1 = (2 × PP) - Low',
+          steps: [
+            '= (2 × ${_f(pp)}) - ${_f(l)}',
+            '= ${_f(2 * pp)} - ${_f(l)}',
+          ],
+          value: c.r1,
+          color: primaryColor,
+          note: 'Resistance minor: level pertama di atas PP.',
+        );
+      case 'R2':
+        return _LevelDetail(
+          title: 'R2 Moderat',
+          formula: 'R2 = PP + (High - Low)',
+          steps: [
+            '= ${_f(pp)} + (${_f(h)} - ${_f(l)})',
+            '= ${_f(pp)} + ${_f(range)}',
+          ],
+          value: c.r2,
+          color: primaryColor,
+          note: 'Resistance moderat: level kedua di atas PP.',
+        );
+      case 'R3':
+        return _LevelDetail(
+          title: 'R3 Kuat',
+          formula: 'R3 = PP + (High - Low) × 2',
+          steps: [
+            '= ${_f(pp)} + (${_f(h)} - ${_f(l)}) × 2',
+            '= ${_f(pp)} + ${_f(range)} × 2',
+            '= ${_f(pp)} + ${_f(range * 2)}',
+          ],
+          value: c.r3,
+          color: primaryColor,
+          note: 'Resistance kuat: level ketiga di atas PP.',
+        );
+      case 'R4':
+        return _LevelDetail(
+          title: 'R4 Ekstrem',
+          formula: 'R4 = PP + (High - Low) × 3',
+          steps: [
+            '= ${_f(pp)} + (${_f(h)} - ${_f(l)}) × 3',
+            '= ${_f(pp)} + ${_f(range)} × 3',
+            '= ${_f(pp)} + ${_f(range * 3)}',
+          ],
+          value: c.r4,
+          color: primaryColor,
+          note: 'Resistance ekstrem: level paling jauh di atas PP.',
+        );
+      case 'S1':
+        return _LevelDetail(
+          title: 'S1 Minor',
+          formula: 'S1 = (2 × PP) - High',
+          steps: [
+            '= (2 × ${_f(pp)}) - ${_f(h)}',
+            '= ${_f(2 * pp)} - ${_f(h)}',
+          ],
+          value: c.s1,
+          color: supportColor,
+          note: 'Support minor: level pertama di bawah PP.',
+        );
+      case 'S2':
+        return _LevelDetail(
+          title: 'S2 Moderat',
+          formula: 'S2 = PP - (High - Low)',
+          steps: [
+            '= ${_f(pp)} - (${_f(h)} - ${_f(l)})',
+            '= ${_f(pp)} - ${_f(range)}',
+          ],
+          value: c.s2,
+          color: supportColor,
+          note: 'Support moderat: level kedua di bawah PP.',
+        );
+      case 'S3':
+        return _LevelDetail(
+          title: 'S3 Kuat',
+          formula: 'S3 = PP - (High - Low) × 2',
+          steps: [
+            '= ${_f(pp)} - (${_f(h)} - ${_f(l)}) × 2',
+            '= ${_f(pp)} - ${_f(range)} × 2',
+            '= ${_f(pp)} - ${_f(range * 2)}',
+          ],
+          value: c.s3,
+          color: supportColor,
+          note: 'Support kuat: level ketiga di bawah PP.',
+        );
+      default: // S4
+        return _LevelDetail(
+          title: 'S4 Ekstrem',
+          formula: 'S4 = PP - (High - Low) × 3',
+          steps: [
+            '= ${_f(pp)} - (${_f(h)} - ${_f(l)}) × 3',
+            '= ${_f(pp)} - ${_f(range)} × 3',
+            '= ${_f(pp)} - ${_f(range * 3)}',
+          ],
+          value: c.s4,
+          color: supportColor,
+          note: 'Support ekstrem: level paling jauh di bawah PP.',
+        );
+    }
+  }
+
+  void _showLevelDetail(String key, PivotCalculation calc, Color primaryColor) {
+    final d = _detailFor(key, calc, primaryColor);
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        return SafeArea(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFE2E8F0),
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        '${d.title} • ${_product.label}',
+                        style: const TextStyle(
+                          fontSize: 17,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF0F172A),
+                        ),
+                      ),
+                    ),
+                    InkWell(
+                      onTap: () => Navigator.pop(ctx),
+                      borderRadius: BorderRadius.circular(20),
+                      child: const Padding(
+                        padding: EdgeInsets.all(4),
+                        child: Icon(Icons.close_rounded,
+                            size: 22, color: Color(0xFF94A3B8)),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+
+                const Text(
+                  'RUMUS',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF64748B),
+                    letterSpacing: 0.5,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF8FAFC),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: const Color(0xFFE2E8F0)),
+                  ),
+                  child: Text(
+                    d.formula,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF0F172A),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 14),
+
+                const Text(
+                  'LANGKAH HITUNG',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF64748B),
+                    letterSpacing: 0.5,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF8FAFC),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: const Color(0xFFE2E8F0)),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      for (final step in d.steps)
+                        Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 2),
+                          child: Text(
+                            step,
+                            style: const TextStyle(
+                              fontSize: 13,
+                              color: Color(0xFF334155),
+                            ),
+                          ),
+                        ),
+                      Padding(
+                        padding: const EdgeInsets.only(top: 4),
+                        child: Text(
+                          '= ${_f(d.value)} $_unit',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
+                            color: d.color,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 14),
+
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.baseline,
+                  textBaseline: TextBaseline.alphabetic,
+                  children: [
+                    Text(
+                      _f(d.value),
+                      style: TextStyle(
+                        fontSize: 32,
+                        fontWeight: FontWeight.w800,
+                        color: d.color,
+                        letterSpacing: -0.5,
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      _unit,
+                      style: const TextStyle(
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF515F74),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+
+                Row(
+                  children: [
+                    if (key != 'PP')
+                      Expanded(
+                        child: _buildSheetMetric(
+                          'Selisih dari PP',
+                          _signed(d.value - calc.pp),
+                        ),
+                      ),
+                    Expanded(
+                      child: _buildSheetMetric(
+                        'Selisih dari Close',
+                        _signed(d.value - calc.close),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  d.note,
+                  style: const TextStyle(
+                    fontSize: 12.5,
+                    color: Color(0xFF64748B),
+                    height: 1.45,
+                  ),
+                ),
+                const SizedBox(height: 16),
+
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: () async {
+                          await Clipboard.setData(
+                              ClipboardData(text: _f(d.value)));
+                          if (ctx.mounted) Navigator.pop(ctx);
+                          if (!mounted) return;
+                          _snack('${d.title} disalin: ${_f(d.value)}');
+                        },
+                        icon: const Icon(Icons.copy_rounded, size: 16),
+                        label: const Text('Salin Hasil'),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: const Color(0xFF0F172A),
+                          side: const BorderSide(color: Color(0xFFE2E8F0)),
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          textStyle: const TextStyle(
+                              fontSize: 13, fontWeight: FontWeight.w600),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: ElevatedButton(
+                        onPressed: () => Navigator.pop(ctx),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: d.color,
+                          foregroundColor: Colors.white,
+                          elevation: 0,
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          textStyle: const TextStyle(
+                              fontSize: 13, fontWeight: FontWeight.w600),
+                        ),
+                        child: const Text('Tutup'),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildSheetMetric(String label, String value) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label,
+            style: const TextStyle(fontSize: 11, color: Color(0xFF64748B))),
+        const SizedBox(height: 2),
+        Text(
+          value,
+          style: const TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.bold,
+            color: Color(0xFF0F172A),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ---------- Build ----------
+
   @override
   Widget build(BuildContext context) {
     final primaryColor = Theme.of(context).colorScheme.primary;
-    final calc = _calculate();
+    final PivotCalculation? calc = _result;
 
     return SingleChildScrollView(
       padding: const EdgeInsets.only(bottom: 24, left: 16, right: 16, top: 12),
@@ -237,8 +898,68 @@ class _PivotCalculatorState extends State<PivotCalculator> {
           ),
           const SizedBox(height: 2),
           const Text(
-            'Hitung level pivot harian, support (S1–S4), dan resistance (R1–R4) untuk emas & forex.',
+            'Pilih produk, lalu tekan Hitung. Mode Otomatis mengisi data sendiri, mode Manual bisa kamu isi sendiri.',
             style: TextStyle(fontSize: 13, color: Color(0xFF515F74)),
+          ),
+          const SizedBox(height: 16),
+
+          // Pilihan produk
+          Row(
+            children: List.generate(_products.length, (index) {
+              final p = _products[index];
+              final bool selected = index == _productIndex;
+              return Expanded(
+                child: Padding(
+                  padding: EdgeInsets.only(
+                      right: index == _products.length - 1 ? 0 : 8),
+                  child: InkWell(
+                    onTap: () => _selectProduct(index),
+                    borderRadius: BorderRadius.circular(12),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(vertical: 10),
+                      decoration: BoxDecoration(
+                        color: selected ? primaryColor : Colors.white,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: selected
+                              ? primaryColor
+                              : const Color(0xFFE2E8F0),
+                        ),
+                      ),
+                      child: Column(
+                        children: [
+                          Icon(p.icon,
+                              size: 18,
+                              color: selected
+                                  ? Colors.white
+                                  : const Color(0xFF64748B)),
+                          const SizedBox(height: 4),
+                          Text(
+                            p.label,
+                            style: TextStyle(
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.bold,
+                              color: selected
+                                  ? Colors.white
+                                  : const Color(0xFF0F172A),
+                            ),
+                          ),
+                          Text(
+                            p.subtitle,
+                            style: TextStyle(
+                              fontSize: 10,
+                              color: selected
+                                  ? Colors.white.withValues(alpha: 0.85)
+                                  : const Color(0xFF64748B),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            }),
           ),
           const SizedBox(height: 16),
 
@@ -256,7 +977,7 @@ class _PivotCalculatorState extends State<PivotCalculator> {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     const Text(
-                      'Input Harga Intraday',
+                      'Input Harga',
                       style: TextStyle(
                         fontSize: 13.5,
                         fontWeight: FontWeight.bold,
@@ -270,9 +991,9 @@ class _PivotCalculatorState extends State<PivotCalculator> {
                         borderRadius: BorderRadius.circular(4),
                         border: Border.all(color: const Color(0xFFE2E8F0)),
                       ),
-                      child: const Text(
-                        'XAU / USD',
-                        style: TextStyle(
+                      child: Text(
+                        '${_product.label} • ${_product.subtitle}',
+                        style: const TextStyle(
                           fontSize: 11,
                           fontWeight: FontWeight.w600,
                           color: Color(0xFF515F74),
@@ -283,14 +1004,60 @@ class _PivotCalculatorState extends State<PivotCalculator> {
                 ),
                 const Divider(height: 20, color: Color(0xFFF1F5F9)),
 
-                _buildInputField('High Price (Tertinggi)', 'H', _highController,
-                    Icons.arrow_upward_rounded, primaryColor),
+                // Pilihan mode: Otomatis / Manual
+                _buildModeToggle(primaryColor),
                 const SizedBox(height: 12),
-                _buildInputField('Low Price (Terendah)', 'L', _lowController,
+
+                _buildInputField('High Kemarin (Tertinggi)', 'H',
+                    _highController, Icons.arrow_upward_rounded, primaryColor),
+                const SizedBox(height: 12),
+                _buildInputField('Low Kemarin (Terendah)', 'L', _lowController,
                     Icons.arrow_downward_rounded, primaryColor),
                 const SizedBox(height: 12),
-                _buildInputField('Close Price (Penutupan)', 'C', _closeController,
-                    Icons.flag_rounded, primaryColor),
+                _buildInputField('Close Kemarin (Penutupan)', 'C',
+                    _closeController, Icons.flag_rounded, primaryColor),
+                const SizedBox(height: 6),
+                _buildPrevStatus(),
+                const SizedBox(height: 6),
+                _buildInputField('Open Hari Ini', 'O', _openController,
+                    Icons.login_rounded, primaryColor),
+                const SizedBox(height: 6),
+                _buildOpenStatus(primaryColor),
+                const SizedBox(height: 14),
+
+                // Tombol Hitung
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: (_loadingPrev || _loadingOpen)
+                        ? null
+                        : _handleCalculate,
+                    icon: (_loadingPrev || _loadingOpen)
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(
+                                strokeWidth: 2, color: Colors.white),
+                          )
+                        : const Icon(Icons.calculate_rounded, size: 18),
+                    label: Text(
+                        (_loadingPrev || _loadingOpen) ? 'Memuat data...' : 'Hitung'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: primaryColor,
+                      foregroundColor: Colors.white,
+                      disabledBackgroundColor:
+                          primaryColor.withValues(alpha: 0.6),
+                      disabledForegroundColor: Colors.white,
+                      elevation: 0,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      textStyle: const TextStyle(
+                          fontSize: 14, fontWeight: FontWeight.w700),
+                    ),
+                  ),
+                ),
                 const SizedBox(height: 12),
 
                 // Actions Row
@@ -344,7 +1111,7 @@ class _PivotCalculatorState extends State<PivotCalculator> {
           ),
           const SizedBox(height: 12),
 
-          // SECTION 2: PROSES & RUMUS PERHITUNGAN
+          // SECTION 2: PROSES & RUMUS PERHITUNGAN (bisa diketuk)
           if (_showFormula) ...[
             Container(
               padding: const EdgeInsets.all(16),
@@ -380,74 +1147,145 @@ class _PivotCalculatorState extends State<PivotCalculator> {
                       ),
                     ],
                   ),
+                  const SizedBox(height: 6),
+                  const Row(
+                    children: [
+                      Icon(Icons.touch_app_outlined,
+                          size: 14, color: Color(0xFF94A3B8)),
+                      SizedBox(width: 4),
+                      Expanded(
+                        child: Text(
+                          'Ketuk rumus untuk melihat langkah hitungnya (setelah tombol Hitung ditekan).',
+                          style: TextStyle(
+                              fontSize: 11, color: Color(0xFF94A3B8)),
+                        ),
+                      ),
+                    ],
+                  ),
                   const SizedBox(height: 10),
+
+                  // Kotak PP
                   Container(
                     width: double.infinity,
-                    padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(color: const Color(0xFFE2E8F0)),
                     ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'Titik Pivot Inti (PP):',
-                          style: TextStyle(
-                              fontSize: 11.5,
-                              fontWeight: FontWeight.w500,
-                              color: Color(0xFF515F74)),
-                        ),
-                        const SizedBox(height: 2),
-                        const Text(
-                          'PP = (High + Low + Close) / 3',
-                          style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.bold,
-                            color: Color(0xFF0F172A),
+                    child: Material(
+                      type: MaterialType.transparency,
+                      child: InkWell(
+                        onTap: () {
+                          if (calc == null) {
+                            _snack('Tekan Hitung dulu untuk melihat langkahnya.');
+                          } else {
+                            _showLevelDetail('PP', calc, primaryColor);
+                          }
+                        },
+                        borderRadius: BorderRadius.circular(12),
+                        child: Padding(
+                          padding: const EdgeInsets.all(12),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'Titik Pivot Inti (PP):',
+                                style: TextStyle(
+                                    fontSize: 11.5,
+                                    fontWeight: FontWeight.w500,
+                                    color: Color(0xFF515F74)),
+                              ),
+                              const SizedBox(height: 2),
+                              const Text(
+                                'PP = (High + Low + Close) / 3',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.bold,
+                                  color: Color(0xFF0F172A),
+                                ),
+                              ),
+                              if (calc != null) ...[
+                                const SizedBox(height: 2),
+                                Text(
+                                  '= (${_f(calc.high)} + ${_f(calc.low)} + ${_f(calc.close)}) / 3 = ${_f(calc.pp)} $_unit',
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    color: Color(0xFF515F74),
+                                  ),
+                                ),
+                              ],
+                            ],
                           ),
                         ),
-                        const SizedBox(height: 2),
-                        Text(
-                          '= (${calc.high.toStringAsFixed(2)} + ${calc.low.toStringAsFixed(2)} + ${calc.close.toStringAsFixed(2)}) / 3 = ${calc.pp.toStringAsFixed(2)} USD',
-                          style: const TextStyle(
-                            fontSize: 12,
-                            color: Color(0xFF515F74),
-                          ),
-                        ),
-                      ],
+                      ),
                     ),
                   ),
                   const SizedBox(height: 8),
                   Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Expanded(
                         child: Container(
-                          padding: const EdgeInsets.all(10),
+                          padding: const EdgeInsets.all(8),
                           decoration: BoxDecoration(
                             color: Colors.white,
                             borderRadius: BorderRadius.circular(12),
                             border: Border.all(color: const Color(0xFFE2E8F0)),
                           ),
-                          child: const Text(
-                            'R1 = (2 × PP) - Low\nS1 = (2 × PP) - High\nR2 = PP + (High - Low)\nS2 = PP - (High - Low)',
-                            style: TextStyle(fontSize: 11, height: 1.4),
+                          child: Material(
+                            type: MaterialType.transparency,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                _buildFormulaTile('R1', 'R1 = (2 × PP) - Low',
+                                    calc, primaryColor),
+                                _buildFormulaTile('S1', 'S1 = (2 × PP) - High',
+                                    calc, primaryColor),
+                                _buildFormulaTile('R2', 'R2 = PP + (High - Low)',
+                                    calc, primaryColor),
+                                _buildFormulaTile('S2', 'S2 = PP - (High - Low)',
+                                    calc, primaryColor),
+                              ],
+                            ),
                           ),
                         ),
                       ),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Container(
-                          padding: const EdgeInsets.all(10),
+                          padding: const EdgeInsets.all(8),
                           decoration: BoxDecoration(
                             color: Colors.white,
                             borderRadius: BorderRadius.circular(12),
                             border: Border.all(color: const Color(0xFFE2E8F0)),
                           ),
-                          child: const Text(
-                            'R3 = High + 2 × (PP - Low)\nS3 = Low - 2 × (High - PP)\nR4 = PP + (High - Low) × 3\nS4 = PP - (High - Low) × 3',
-                            style: TextStyle(fontSize: 11, height: 1.4),
+                          child: Material(
+                            type: MaterialType.transparency,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                _buildFormulaTile(
+                                    'R3',
+                                    'R3 = PP + (High - Low) × 2',
+                                    calc,
+                                    primaryColor),
+                                _buildFormulaTile(
+                                    'S3',
+                                    'S3 = PP - (High - Low) × 2',
+                                    calc,
+                                    primaryColor),
+                                _buildFormulaTile(
+                                    'R4',
+                                    'R4 = PP + (High - Low) × 3',
+                                    calc,
+                                    primaryColor),
+                                _buildFormulaTile(
+                                    'S4',
+                                    'S4 = PP - (High - Low) × 3',
+                                    calc,
+                                    primaryColor),
+                              ],
+                            ),
                           ),
                         ),
                       ),
@@ -459,212 +1297,300 @@ class _PivotCalculatorState extends State<PivotCalculator> {
             const SizedBox(height: 12),
           ],
 
-          // SECTION 3: HASIL PERHITUNGAN
-          Container(
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: const Color(0xFFE2E8F0)),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          const Text(
-                            'HASIL PIVOT POINT',
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                              color: Color(0xFF515F74),
-                              letterSpacing: 0.5,
-                            ),
-                          ),
-                          _buildBiasBadge(calc.bias, primaryColor),
-                        ],
-                      ),
-                      const SizedBox(height: 10),
-                      const Text(
-                        'STANDARD PIVOT POINT (PP)',
-                        style: TextStyle(
-                            fontSize: 11.5,
-                            fontWeight: FontWeight.w500,
-                            color: Color(0xFF515F74)),
-                      ),
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.baseline,
-                        textBaseline: TextBaseline.alphabetic,
-                        children: [
-                          Text(
-                            calc.pp.toStringAsFixed(2),
-                            style: TextStyle(
-                              fontSize: 34,
-                              fontWeight: FontWeight.w800,
-                              color: primaryColor,
-                              letterSpacing: -0.5,
-                            ),
-                          ),
-                          const SizedBox(width: 6),
-                          const Text(
-                            'USD',
-                            style: TextStyle(
-                                fontSize: 13.5,
-                                fontWeight: FontWeight.w600,
-                                color: Color(0xFF515F74)),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        'Harga penutupan ${calc.close.toStringAsFixed(2)} berada ${calc.diff >= 0 ? "di atas" : "di bawah"} Pivot Point (${calc.diff >= 0 ? "+${calc.diff.toStringAsFixed(2)}" : calc.diff.toStringAsFixed(2)}).',
-                        style: const TextStyle(
-                            fontSize: 12.5, color: Color(0xFF515F74)),
-                      ),
-                    ],
-                  ),
-                ),
-
-                // Level Grid (Support & Resistance R1-R4 & S1-S4)
-                Container(
-                  padding: const EdgeInsets.all(14),
-                  decoration: const BoxDecoration(
-                    color: Color(0xFFF8FAFC),
-                    border: Border(
-                      top: BorderSide(color: Color(0xFFE2E8F0)),
+          // SECTION 3: SINYAL + HASIL PERHITUNGAN
+          if (calc == null)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(18),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: const Color(0xFFE2E8F0)),
+              ),
+              child: const Column(
+                children: [
+                  Icon(Icons.calculate_outlined,
+                      size: 32, color: Color(0xFF94A3B8)),
+                  SizedBox(height: 8),
+                  Text(
+                    'Belum ada hasil',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF0F172A),
                     ),
                   ),
-                  child: Row(
-                    children: [
-                      // Resistance Column
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                  SizedBox(height: 4),
+                  Text(
+                    'Tekan Hitung untuk melihat level pivot dan sinyal Buy/Sell.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 12.5, color: Color(0xFF64748B)),
+                  ),
+                ],
+              ),
+            )
+          else ...[
+            _buildSignalCard(calc, primaryColor),
+            const SizedBox(height: 12),
+            Container(
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: const Color(0xFFE2E8F0)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Row(
+                            const Text(
+                              'HASIL PIVOT POINT',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: Color(0xFF515F74),
+                                letterSpacing: 0.5,
+                              ),
+                            ),
+                            _buildBiasBadge(calc.bias, primaryColor),
+                          ],
+                        ),
+                        const SizedBox(height: 10),
+                        const Text(
+                          'STANDARD PIVOT POINT (PP)',
+                          style: TextStyle(
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.w500,
+                              color: Color(0xFF515F74)),
+                        ),
+                        Material(
+                          type: MaterialType.transparency,
+                          child: InkWell(
+                            onTap: () =>
+                                _showLevelDetail('PP', calc, primaryColor),
+                            borderRadius: BorderRadius.circular(8),
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.baseline,
+                              textBaseline: TextBaseline.alphabetic,
                               children: [
-                                Icon(Icons.north_east_rounded,
-                                    size: 15, color: primaryColor),
-                                const SizedBox(width: 4),
                                 Text(
-                                  'Resistance (Jual)',
+                                  _f(calc.pp),
                                   style: TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.bold,
+                                    fontSize: 34,
+                                    fontWeight: FontWeight.w800,
                                     color: primaryColor,
+                                    letterSpacing: -0.5,
                                   ),
                                 ),
-                              ],
-                            ),
-                            const SizedBox(height: 8),
-                            _buildLevelCard('R4 Ekstrem', calc.r4),
-                            const SizedBox(height: 6),
-                            _buildLevelCard('R3 Kuat', calc.r3),
-                            const SizedBox(height: 6),
-                            _buildLevelCard('R2 Moderat', calc.r2),
-                            const SizedBox(height: 6),
-                            _buildLevelCard('R1 Minor', calc.r1),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-
-                      // Support Column
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              children: const [
-                                Icon(Icons.south_east_rounded,
-                                    size: 15, color: Color(0xFF047857)),
-                                SizedBox(width: 4),
+                                const SizedBox(width: 6),
                                 Text(
-                                  'Support (Beli)',
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.bold,
-                                    color: Color(0xFF047857),
-                                  ),
+                                  _unit,
+                                  style: const TextStyle(
+                                      fontSize: 13.5,
+                                      fontWeight: FontWeight.w600,
+                                      color: Color(0xFF515F74)),
                                 ),
                               ],
                             ),
-                            const SizedBox(height: 8),
-                            _buildLevelCard('S1 Minor', calc.s1),
-                            const SizedBox(height: 6),
-                            _buildLevelCard('S2 Moderat', calc.s2),
-                            const SizedBox(height: 6),
-                            _buildLevelCard('S3 Kuat', calc.s3),
-                            const SizedBox(height: 6),
-                            _buildLevelCard('S4 Ekstrem', calc.s4),
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'Harga penutupan ${_f(calc.close)} berada ${calc.diff >= 0 ? "di atas" : "di bawah"} Pivot Point (${_signed(calc.diff)}).',
+                          style: const TextStyle(
+                              fontSize: 12.5, color: Color(0xFF515F74)),
+                        ),
+                        const SizedBox(height: 8),
+                        const Row(
+                          children: [
+                            Icon(Icons.touch_app_outlined,
+                                size: 14, color: Color(0xFF94A3B8)),
+                            SizedBox(width: 4),
+                            Expanded(
+                              child: Text(
+                                'Ketuk PP atau level R/S untuk melihat langkah hitungnya.',
+                                style: TextStyle(
+                                    fontSize: 11, color: Color(0xFF94A3B8)),
+                              ),
+                            ),
                           ],
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
-                ),
 
-                // Bottom Actions
-                Padding(
-                  padding: const EdgeInsets.all(14),
-                  child: Column(
-                    children: [
-                      SizedBox(
-                        width: double.infinity,
-                        child: ElevatedButton.icon(
-                          onPressed: _handleSave,
-                          icon: Icon(
-                            _savedSuccess
-                                ? Icons.check_circle_rounded
-                                : Icons.bookmark_add_rounded,
-                            size: 18,
-                          ),
-                          label: Text(
-                            _savedSuccess
-                                ? 'Tersimpan di Riwayat!'
-                                : 'Simpan ke Riwayat',
-                          ),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: _savedSuccess
-                                ? const Color(0xFF059669)
-                                : primaryColor,
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(vertical: 12),
-                            elevation: 0,
-                            shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12)),
-                            textStyle: const TextStyle(
-                                fontSize: 13.5, fontWeight: FontWeight.w600),
+                  // Level Grid
+                  Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: const BoxDecoration(
+                      color: Color(0xFFF8FAFC),
+                      border: Border(
+                        top: BorderSide(color: Color(0xFFE2E8F0)),
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Icon(Icons.north_east_rounded,
+                                      size: 15, color: primaryColor),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    'Resistance (Jual)',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.bold,
+                                      color: primaryColor,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 8),
+                              _buildLevelCard('R4 Ekstrem', calc.r4,
+                                  () => _showLevelDetail('R4', calc, primaryColor)),
+                              const SizedBox(height: 6),
+                              _buildLevelCard('R3 Kuat', calc.r3,
+                                  () => _showLevelDetail('R3', calc, primaryColor)),
+                              const SizedBox(height: 6),
+                              _buildLevelCard('R2 Moderat', calc.r2,
+                                  () => _showLevelDetail('R2', calc, primaryColor)),
+                              const SizedBox(height: 6),
+                              _buildLevelCard('R1 Minor', calc.r1,
+                                  () => _showLevelDetail('R1', calc, primaryColor)),
+                            ],
                           ),
                         ),
-                      ),
-                      const SizedBox(height: 8),
-                      SizedBox(
-                        width: double.infinity,
-                        child: OutlinedButton.icon(
-                          onPressed: () => widget.onOpenDetailModal(calc),
-                          icon: Icon(Icons.visibility_outlined, size: 18, color: primaryColor),
-                          label: Text('Lihat Rincian Lengkap', style: TextStyle(color: primaryColor)),
-                          style: OutlinedButton.styleFrom(
-                            backgroundColor: Colors.white,
-                            side: BorderSide(color: primaryColor.withValues(alpha: 0.3)),
-                            padding: const EdgeInsets.symmetric(vertical: 12),
-                            shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12)),
-                            textStyle: const TextStyle(
-                                fontSize: 13, fontWeight: FontWeight.w600),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Row(
+                                children: [
+                                  Icon(Icons.south_east_rounded,
+                                      size: 15, color: Color(0xFF047857)),
+                                  SizedBox(width: 4),
+                                  Text(
+                                    'Support (Beli)',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.bold,
+                                      color: Color(0xFF047857),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 8),
+                              _buildLevelCard('S1 Minor', calc.s1,
+                                  () => _showLevelDetail('S1', calc, primaryColor)),
+                              const SizedBox(height: 6),
+                              _buildLevelCard('S2 Moderat', calc.s2,
+                                  () => _showLevelDetail('S2', calc, primaryColor)),
+                              const SizedBox(height: 6),
+                              _buildLevelCard('S3 Kuat', calc.s3,
+                                  () => _showLevelDetail('S3', calc, primaryColor)),
+                              const SizedBox(height: 6),
+                              _buildLevelCard('S4 Ekstrem', calc.s4,
+                                  () => _showLevelDetail('S4', calc, primaryColor)),
+                            ],
                           ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
-                ),
-              ],
+
+                  // Bottom Actions
+                  Padding(
+                    padding: const EdgeInsets.all(14),
+                    child: Column(
+                      children: [
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton.icon(
+                            onPressed: _handleSave,
+                            icon: Icon(
+                              _savedSuccess
+                                  ? Icons.check_circle_rounded
+                                  : Icons.bookmark_add_rounded,
+                              size: 18,
+                            ),
+                            label: Text(
+                              _savedSuccess
+                                  ? 'Tersimpan di Riwayat!'
+                                  : 'Simpan ke Riwayat',
+                            ),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: _savedSuccess
+                                  ? const Color(0xFF059669)
+                                  : primaryColor,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                              elevation: 0,
+                              shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12)),
+                              textStyle: const TextStyle(
+                                  fontSize: 13.5, fontWeight: FontWeight.w600),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        SizedBox(
+                          width: double.infinity,
+                          child: OutlinedButton.icon(
+                            onPressed: () => widget.onOpenDetailModal(calc),
+                            icon: Icon(Icons.visibility_outlined,
+                                size: 18, color: primaryColor),
+                            label: Text('Lihat Rincian Lengkap',
+                                style: TextStyle(color: primaryColor)),
+                            style: OutlinedButton.styleFrom(
+                              backgroundColor: Colors.white,
+                              side: BorderSide(
+                                  color: primaryColor.withValues(alpha: 0.3)),
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                              shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12)),
+                              textStyle: const TextStyle(
+                                  fontSize: 13, fontWeight: FontWeight.w600),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+          const SizedBox(height: 12),
+
+          // Tombol grafik TradingView untuk produk terpilih
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: _openChart,
+              icon: Icon(Icons.candlestick_chart_rounded,
+                  size: 18, color: primaryColor),
+              label: Text('Lihat Grafik ${_product.label} di TradingView',
+                  style: TextStyle(color: primaryColor)),
+              style: OutlinedButton.styleFrom(
+                backgroundColor: Colors.white,
+                side: BorderSide(color: primaryColor.withValues(alpha: 0.3)),
+                padding: const EdgeInsets.symmetric(vertical: 13),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12)),
+                textStyle:
+                    const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+              ),
             ),
           ),
           const SizedBox(height: 12),
@@ -676,10 +1602,262 @@ class _PivotCalculatorState extends State<PivotCalculator> {
     );
   }
 
-  Widget _buildKonsepTransaksi() {
-    const buyColor = Color(0xFF059669);
-    const sellColor = Color(0xFFE11D48);
+  // ---------- Widget bantu ----------
 
+  // Pilihan mode input: Otomatis / Manual
+  Widget _buildModeToggle(Color primaryColor) {
+    Widget opt(String label, IconData icon, bool auto) {
+      final bool selected = _autoMode == auto;
+      return Expanded(
+        child: InkWell(
+          onTap: () {
+            if (_autoMode == auto) return;
+            setState(() {
+              _autoMode = auto;
+              _result = null;
+            });
+            if (auto) {
+              _loadPrevDay();
+              _fetchOpen();
+            }
+          },
+          borderRadius: BorderRadius.circular(10),
+          child: Container(
+            padding: const EdgeInsets.symmetric(vertical: 9),
+            decoration: BoxDecoration(
+              color: selected ? primaryColor : Colors.white,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(
+                  color: selected ? primaryColor : const Color(0xFFE2E8F0)),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(icon,
+                    size: 16,
+                    color: selected ? Colors.white : const Color(0xFF64748B)),
+                const SizedBox(width: 6),
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w600,
+                    color: selected ? Colors.white : const Color(0xFF334155),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Row(
+      children: [
+        opt('Otomatis', Icons.auto_awesome_rounded, true),
+        const SizedBox(width: 8),
+        opt('Manual', Icons.edit_rounded, false),
+      ],
+    );
+  }
+
+  Widget _buildPrevStatus() {
+    if (!_autoMode) return const SizedBox.shrink();
+    String text;
+    Color color = const Color(0xFF94A3B8);
+    if (_loadingPrev) {
+      text = 'Mengambil data kemarin...';
+    } else if (_prevError != null) {
+      text = _prevError!;
+      color = const Color(0xFF9A3412);
+    } else if (_prevInfo.isNotEmpty) {
+      text = _prevInfo;
+    } else {
+      text = 'High/Low/Close kemarin diambil otomatis.';
+    }
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Text(text, style: TextStyle(fontSize: 11, color: color)),
+    );
+  }
+
+  Widget _buildOpenStatus(Color primaryColor) {
+    String text;
+    Color color = const Color(0xFF94A3B8);
+    if (_loadingOpen) {
+      text = 'Mengambil Open live...';
+    } else if (_openError) {
+      text = 'Gagal mengambil Open live. Isi manual atau coba lagi.';
+      color = const Color(0xFF9A3412);
+    } else if (_liveTime.isNotEmpty) {
+      text = 'Open live dari Newsmaker • $_liveTime';
+    } else {
+      text = 'Open hari ini diambil otomatis, bisa diubah di mode Manual.';
+    }
+
+    return Row(
+      children: [
+        Expanded(
+          child: Text(text, style: TextStyle(fontSize: 11, color: color)),
+        ),
+        InkWell(
+          onTap: _loadingOpen ? null : _fetchOpen,
+          borderRadius: BorderRadius.circular(8),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+            child: Row(
+              children: [
+                Icon(Icons.refresh_rounded,
+                    size: 15,
+                    color: _loadingOpen ? const Color(0xFF94A3B8) : primaryColor),
+                const SizedBox(width: 3),
+                Text(
+                  'Perbarui',
+                  style: TextStyle(
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w600,
+                    color: _loadingOpen ? const Color(0xFF94A3B8) : primaryColor,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // Kartu sinyal Buy / Sell: PP dibanding Open hari ini
+  Widget _buildSignalCard(PivotCalculation calc, Color primaryColor) {
+    final double? open = _resultOpen;
+
+    if (open == null) {
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: const Color(0xFFF8FAFC),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: const Color(0xFFE2E8F0)),
+        ),
+        child: const Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(Icons.info_outline_rounded,
+                size: 18, color: Color(0xFF64748B)),
+            SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                'Open hari ini belum terisi. Tekan Perbarui (atau isi manual), lalu tekan Hitung lagi untuk melihat sinyal Buy/Sell.',
+                style: TextStyle(
+                    fontSize: 12.5, color: Color(0xFF64748B), height: 1.4),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    final String signal =
+        calc.pp > open ? 'BUY' : (calc.pp < open ? 'SELL' : 'NETRAL');
+    final Color color = signal == 'BUY'
+        ? _buyColor
+        : (signal == 'SELL' ? _sellColor : _neutralColor);
+    final String relation = calc.pp > open
+        ? 'di atas'
+        : (calc.pp < open ? 'di bawah' : 'sama dengan');
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.07),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'SINYAL PIVOT POINT',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF515F74),
+                  letterSpacing: 0.5,
+                ),
+              ),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
+                decoration: BoxDecoration(
+                  color: color,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  signal,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w800,
+                    color: Colors.white,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Text(
+            'PP ${_f(calc.pp)} berada $relation Open ${_f(open)} (${_product.label}).',
+            style: const TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: Color(0xFF0F172A),
+              height: 1.4,
+            ),
+          ),
+          const SizedBox(height: 4),
+          const Text(
+            'Aturan: PP di atas harga open hari ini = Buy, PP di bawah harga open = Sell. Ini sinyal dari rumus saja, bukan saran investasi.',
+            style: TextStyle(
+                fontSize: 11.5, color: Color(0xFF64748B), height: 1.4),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFormulaTile(
+      String key, String text, PivotCalculation? calc, Color primaryColor) {
+    return InkWell(
+      onTap: () {
+        if (calc == null) {
+          _snack('Tekan Hitung dulu untuk melihat langkahnya.');
+        } else {
+          _showLevelDetail(key, calc, primaryColor);
+        }
+      },
+      borderRadius: BorderRadius.circular(6),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 5, horizontal: 2),
+        child: Text(
+          text,
+          style: const TextStyle(
+            fontSize: 11,
+            height: 1.3,
+            decoration: TextDecoration.underline,
+            decorationStyle: TextDecorationStyle.dotted,
+            decorationColor: Color(0xFF94A3B8),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildKonsepTransaksi() {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(16),
@@ -705,8 +1883,8 @@ class _PivotCalculatorState extends State<PivotCalculator> {
             description:
                 'Harga wajar atau harga pasaran untuk menentukan aksi beli dan jual, mengacu pada harga pembukaan (open).',
             rules: [
-              _buildRuleRow('Open < Pivot Point', 'BUY', buyColor),
-              _buildRuleRow('Open > Pivot Point', 'SELL', sellColor),
+              _buildRuleRow('Open < Pivot Point', 'BUY', _buyColor),
+              _buildRuleRow('Open > Pivot Point', 'SELL', _sellColor),
             ],
           ),
         ],
@@ -800,9 +1978,15 @@ class _PivotCalculatorState extends State<PivotCalculator> {
         const SizedBox(height: 4),
         TextField(
           controller: controller,
+          readOnly: _autoMode, // terkunci di mode otomatis
           keyboardType: const TextInputType.numberWithOptions(decimal: true),
           onChanged: (val) {
-            setState(() {});
+            // Hasil lama tidak berlaku lagi, perlu tekan Hitung ulang
+            if (_result != null) {
+              setState(() {
+                _result = null;
+              });
+            }
           },
           style: const TextStyle(
             fontSize: 15,
@@ -810,8 +1994,13 @@ class _PivotCalculatorState extends State<PivotCalculator> {
             color: Color(0xFF0F172A),
           ),
           decoration: InputDecoration(
+            hintText: '0.00',
+            hintStyle: const TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w400,
+                color: Color(0xFFCBD5E1)),
             prefixIcon: Icon(icon, size: 18, color: const Color(0xFF94A3B8)),
-            suffixText: 'USD',
+            suffixText: _unit,
             suffixStyle: const TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.w600,
@@ -834,28 +2023,38 @@ class _PivotCalculatorState extends State<PivotCalculator> {
     );
   }
 
-  Widget _buildLevelCard(String label, double val) {
+  Widget _buildLevelCard(String label, double val, VoidCallback onTap) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(10),
         border: Border.all(color: const Color(0xFFE2E8F0)),
       ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(label,
-              style: const TextStyle(fontSize: 11.5, color: Color(0xFF515F74))),
-          Text(
-            val.toStringAsFixed(2),
-            style: const TextStyle(
-              fontSize: 13.5,
-              fontWeight: FontWeight.bold,
-              color: Color(0xFF0F172A),
+      child: Material(
+        type: MaterialType.transparency,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(10),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(label,
+                    style: const TextStyle(
+                        fontSize: 11.5, color: Color(0xFF515F74))),
+                Text(
+                  _f(val),
+                  style: const TextStyle(
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF0F172A),
+                  ),
+                ),
+              ],
             ),
           ),
-        ],
+        ),
       ),
     );
   }

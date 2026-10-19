@@ -145,7 +145,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       final String newName = _nameController.text.trim();
       String persistedAvatarPath = widget.user.avatarUrl;
 
-      // 1. Simpan foto ke penyimpanan lokal HP terikat email
+      // 1. Kalau ada foto baru yang dipilih, simpan permanen di penyimpanan
+      //    lokal HP (bukan sekadar cache sementara dari image_picker).
       if (_selectedImageFile != null) {
         final copiedPath = await ProfileStorage.persistPickedImage(
           _selectedImageFile!,
@@ -156,13 +157,16 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         }
       }
 
-      // 2. Perbarui Display Name & Photo URL di Firebase Auth User
+      // 2. Perbarui Display Name & Photo URL di Firebase Auth User.
+      //    Firebase Auth hanya menerima URL http/https, bukan path file lokal,
+      //    jadi updatePhotoURL cuma dipanggil kalau avatarnya memang URL valid.
       final User? firebaseUser = FirebaseAuth.instance.currentUser;
       if (firebaseUser != null) {
         if (newName != firebaseUser.displayName) {
           await firebaseUser.updateDisplayName(newName);
         }
-        if (persistedAvatarPath.isNotEmpty) {
+        if (persistedAvatarPath.startsWith('http://') ||
+            persistedAvatarPath.startsWith('https://')) {
           await firebaseUser.updatePhotoURL(persistedAvatarPath);
         }
         await firebaseUser.reload();
