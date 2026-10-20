@@ -1,22 +1,24 @@
 import 'package:flutter/material.dart';
 
+import 'package:kimpul/screens/result_actions.dart';
+
 // Model Data Kalkulasi Emas Fisik
 class GoldCalculation {
   final String id;
   final String timestamp;
   final String formattedDate;
   final String formattedTime;
-  final String transactionType; // 'buy' | 'sell'
-  final double weight;
-  final double purityValue;
-  final String purityLabel;
-  final double basePrice;
-  final bool hasNpwp;
-  final double mintCost;
-  final double subtotal;
-  final double taxAmount;
-  final double grandTotal;
-  final double buybackEstimate;
+  final double modal; // Rp
+  final double kurs; // Rp per 1 USD
+  final double hargaBeliUsd; // HB (USD per troy ounce)
+  final double hargaJualUsd; // HJ (USD per troy ounce)
+  final double hbPerGram; // Rp per gram (beli)
+  final double hjPerGram; // Rp per gram (jual)
+  final double selisihPerGram; // Rp
+  final double gram; // emas yang didapat dari modal
+  final double untung; // Rp (negatif = rugi)
+  final double nilaiAkhir; // modal + untung
+  final bool pembulatanKeBawah;
   final String type; // 'gold'
 
   GoldCalculation({
@@ -24,19 +26,32 @@ class GoldCalculation {
     required this.timestamp,
     required this.formattedDate,
     required this.formattedTime,
-    required this.transactionType,
-    required this.weight,
-    required this.purityValue,
-    required this.purityLabel,
-    required this.basePrice,
-    required this.hasNpwp,
-    required this.mintCost,
-    required this.subtotal,
-    required this.taxAmount,
-    required this.grandTotal,
-    required this.buybackEstimate,
+    required this.modal,
+    required this.kurs,
+    required this.hargaBeliUsd,
+    required this.hargaJualUsd,
+    required this.hbPerGram,
+    required this.hjPerGram,
+    required this.selisihPerGram,
+    required this.gram,
+    required this.untung,
+    required this.nilaiAkhir,
+    required this.pembulatanKeBawah,
     this.type = 'gold',
   });
+
+  // Nama lama, supaya file lain yang masih memakainya tidak error.
+  String get transactionType => 'buy';
+  double get weight => gram;
+  double get purityValue => 1.0;
+  String get purityLabel => '24K';
+  double get basePrice => hbPerGram;
+  bool get hasNpwp => false;
+  double get mintCost => 0;
+  double get subtotal => modal;
+  double get taxAmount => 0;
+  double get grandTotal => nilaiAkhir;
+  double get buybackEstimate => gram * hjPerGram;
 }
 
 class GoldCalculator extends StatefulWidget {
@@ -58,123 +73,155 @@ class GoldCalculator extends StatefulWidget {
 }
 
 class _GoldCalculatorState extends State<GoldCalculator> {
-  late String _transactionType;
-  late TextEditingController _weightController;
-  late double _purityValue;
-  late TextEditingController _basePriceController;
-  late bool _hasNpwp;
+  // TOZ (troy ounce -> gram): ketetapan, tidak bisa diubah (sesuai catatan)
+  static const double _toz = 31.1;
 
+  static const Color _accent = Color(0xFFBE123C);
+  static const Color _profitColor = Color(0xFF059669);
+
+  // Nilai awal = contoh dari catatan (hasil untung Rp 48.374)
+  static const double _defModal = 100000000;
+  static const double _defKurs = 18000;
+  static const double _defHb = 4132;
+  static const double _defHj = 4134;
+
+  late final TextEditingController _modalC;
+  late final TextEditingController _kursC;
+  late final TextEditingController _hbC;
+  late final TextEditingController _hjC;
+
+  bool _roundDown = true;
   bool _showFormula = true;
   bool _savedSuccess = false;
-
-  // Hapus kata kunci 'const' agar Map dengan key double diperbolehkan
-  final Map<double, String> _purityLabelMap = {
-    1.0: '99.99% (24 Karat - Fine Gold LBMA)',
-    0.995: '99.50% (24 Karat Standar Lokal)',
-    0.916: '91.60% (22 Karat Batangan Koleksi)',
-  };
 
   @override
   void initState() {
     super.initState();
-    _transactionType = widget.initialValues?.transactionType ?? 'buy';
-    _weightController = TextEditingController(
-        text: (widget.initialValues?.weight ?? 50.0).toStringAsFixed(0));
-    _purityValue = widget.initialValues?.purityValue ?? 1.0;
-    _basePriceController = TextEditingController(
-        text: (widget.initialValues?.basePrice ?? 1150000.0).toStringAsFixed(0));
-    _hasNpwp = widget.initialValues?.hasNpwp ?? true;
+    final init = widget.initialValues;
+    _modalC = TextEditingController(text: _plain(init?.modal ?? _defModal));
+    _kursC = TextEditingController(text: _plain(init?.kurs ?? _defKurs));
+    _hbC = TextEditingController(text: _plain(init?.hargaBeliUsd ?? _defHb));
+    _hjC = TextEditingController(text: _plain(init?.hargaJualUsd ?? _defHj));
+    _roundDown = init?.pembulatanKeBawah ?? true;
   }
 
   @override
   void dispose() {
-    _weightController.dispose();
-    _basePriceController.dispose();
+    _modalC.dispose();
+    _kursC.dispose();
+    _hbC.dispose();
+    _hjC.dispose();
     super.dispose();
   }
 
-  double _getMintCost(double grams) {
-    if (grams <= 5) return 50000;
-    if (grams <= 10) return 75000;
-    if (grams <= 25) return 100000;
-    if (grams <= 50) return 150000;
-    return 250000;
+  // ---------- Helper ----------
+
+  String _plain(double v) =>
+      v == v.roundToDouble() ? v.toStringAsFixed(0) : v.toString();
+
+  // Modal & kurs: titik pemisah ribuan (100.000.000) boleh diketik
+  double? _parseMoney(String s) {
+    var t = s.trim();
+    if (RegExp(r'^\d{1,3}(\.\d{3})+(,\d+)?$').hasMatch(t)) {
+      t = t.replaceAll('.', '');
+    }
+    return double.tryParse(t.replaceAll(',', '.'));
   }
 
-  String _formatRupiah(double num) {
-    int val = num.round();
-    String str = val.toString();
-    RegExp reg = RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))');
-    return str.replaceAllMapped(reg, (Match m) => '${m[1]}.');
+  // Harga USD: koma atau titik sama-sama dianggap desimal
+  double? _parseDecimal(String s) =>
+      double.tryParse(s.trim().replaceAll(',', '.'));
+
+  String _rp(double v) {
+    final neg = v < 0;
+    final s = v.abs().round().toString().replaceAllMapped(
+        RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (m) => '${m[1]}.');
+    return neg ? '-$s' : s;
   }
+
+  String _gramText(double v) => v.toStringAsFixed(2).replaceAll('.', ',');
+
+  String _usd(double v) =>
+      v == v.roundToDouble() ? v.toStringAsFixed(0) : v.toStringAsFixed(2);
 
   void _handleReset() {
     setState(() {
-      _weightController.text = '50';
-      _basePriceController.text = '1150000';
-      _purityValue = 1.0;
-      _hasNpwp = true;
-      _transactionType = 'buy';
+      _modalC.text = _plain(_defModal);
+      _kursC.text = _plain(_defKurs);
+      _hbC.text = _plain(_defHb);
+      _hjC.text = _plain(_defHj);
+      _roundDown = true;
     });
   }
 
-  GoldCalculation _calculate() {
-    final double weight = double.tryParse(_weightController.text) ?? 1.0;
-    final double basePrice = double.tryParse(_basePriceController.text) ?? 0.0;
+  // ---------- Perhitungan (sesuai catatan) ----------
+  //
+  // 1) HB x Kurs / TOZ          -> Rp per gram (beli)
+  // 2) HJ x Kurs / TOZ          -> Rp per gram (jual)
+  // 3) hasil 2 - hasil 1        -> selisih per gram
+  // 4) Modal / hasil 1          -> gram yang didapat
+  // 5) hasil 3 x hasil 4        -> untung
 
-    final double mintCost =
-        _transactionType == 'buy' ? _getMintCost(weight) : 0.0;
-    final double rawBaseTotal = weight * _purityValue * basePrice;
-    final double subtotal = rawBaseTotal + mintCost;
-    final double taxRate = _hasNpwp ? 0.0025 : 0.005;
-    final double taxAmount = (subtotal * taxRate).roundToDouble();
-    final double grandTotal =
-        subtotal + (_transactionType == 'buy' ? taxAmount : -taxAmount);
-    final double buybackEstimate = (rawBaseTotal * 0.916).roundToDouble();
+  GoldCalculation? _calculate() {
+    final modal = _parseMoney(_modalC.text);
+    final kurs = _parseMoney(_kursC.text);
+    final hb = _parseDecimal(_hbC.text);
+    final hj = _parseDecimal(_hjC.text);
+
+    if (modal == null || kurs == null || hb == null || hj == null) return null;
+    if (modal <= 0 || kurs <= 0 || hb <= 0 || hj <= 0) return null;
+
+    double hbGram = hb * kurs / _toz;
+    double hjGram = hj * kurs / _toz;
+    if (_roundDown) {
+      hbGram = (hbGram + 1e-9).floorToDouble();
+      hjGram = (hjGram + 1e-9).floorToDouble();
+    }
+    if (hbGram <= 0) return null;
+
+    double gram = modal / hbGram;
+    if (_roundDown) {
+      gram = ((gram * 100) + 1e-9).floorToDouble() / 100;
+    }
+
+    final selisih = hjGram - hbGram;
+    final untung = selisih * gram;
 
     final now = DateTime.now();
-    final months = [
+    const months = [
       'Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun',
       'Jul', 'Agt', 'Sep', 'Okt', 'Nov', 'Des'
     ];
 
-    final String formattedDate =
-        '${now.day.toString().padLeft(2, '0')} ${months[now.month - 1]} ${now.year}';
-    final String formattedTime =
-        '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}';
-
     return GoldCalculation(
       id: 'gold-${now.millisecondsSinceEpoch}',
       timestamp: now.toIso8601String(),
-      formattedDate: formattedDate,
-      formattedTime: formattedTime,
-      transactionType: _transactionType,
-      weight: weight,
-      purityValue: _purityValue,
-      purityLabel: _purityLabelMap[_purityValue] ?? '99.99% (24K)',
-      basePrice: basePrice,
-      hasNpwp: _hasNpwp,
-      mintCost: mintCost,
-      subtotal: subtotal,
-      taxAmount: taxAmount,
-      grandTotal: grandTotal,
-      buybackEstimate: buybackEstimate,
+      formattedDate:
+          '${now.day.toString().padLeft(2, '0')} ${months[now.month - 1]} ${now.year}',
+      formattedTime:
+          '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}',
+      modal: modal,
+      kurs: kurs,
+      hargaBeliUsd: hb,
+      hargaJualUsd: hj,
+      hbPerGram: hbGram,
+      hjPerGram: hjGram,
+      selisihPerGram: selisih,
+      gram: gram,
+      untung: untung,
+      nilaiAkhir: modal + untung,
+      pembulatanKeBawah: _roundDown,
     );
   }
 
-  void _handleSave() async {
-    final calc = _calculate();
+  void _handleSave(GoldCalculation calc) async {
     widget.onSaveHistory(calc);
-    setState(() {
-      _savedSuccess = true;
-    });
+    setState(() => _savedSuccess = true);
     await Future.delayed(const Duration(milliseconds: 2200));
-    if (mounted) {
-      setState(() {
-        _savedSuccess = false;
-      });
-    }
+    if (mounted) setState(() => _savedSuccess = false);
   }
+
+  // ---------- Build ----------
 
   @override
   Widget build(BuildContext context) {
@@ -192,21 +239,18 @@ class _GoldCalculatorState extends State<GoldCalculator> {
               InkWell(
                 onTap: widget.onBack,
                 borderRadius: BorderRadius.circular(8),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 2),
+                child: const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 4, horizontal: 2),
                   child: Row(
-                    children: const [
+                    children: [
                       Icon(Icons.arrow_back_rounded,
                           size: 18, color: Color(0xFF64748B)),
                       SizedBox(width: 4),
-                      Text(
-                        'Kembali',
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w500,
-                          color: Color(0xFF64748B),
-                        ),
-                      ),
+                      Text('Kembali',
+                          style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w500,
+                              color: Color(0xFF64748B))),
                     ],
                   ),
                 ),
@@ -218,14 +262,11 @@ class _GoldCalculatorState extends State<GoldCalculator> {
                   color: const Color(0xFFF1F5F9),
                   borderRadius: BorderRadius.circular(20),
                 ),
-                child: const Text(
-                  'Emas Batangan 24K',
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                    color: Color(0xFF475569),
-                  ),
-                ),
+                child: const Text('Emas Fisik • Kurs',
+                    style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF475569))),
               ),
             ],
           ),
@@ -235,359 +276,68 @@ class _GoldCalculatorState extends State<GoldCalculator> {
           const Text(
             'Kalkulator Emas Fisik',
             style: TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-              color: Color(0xFFBE123C),
-              letterSpacing: -0.5,
-            ),
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+                color: _accent,
+                letterSpacing: -0.5),
           ),
           const SizedBox(height: 2),
           const Text(
-            'Simulasi nilai gramatur, biaya cetak kemasan CertiCard, dan pajak PPh 22.',
+            'Hitung untung/rugi emas dari modal, kurs, harga beli (HB), dan harga jual (HJ) dalam USD per ons.',
             style: TextStyle(fontSize: 13, color: Color(0xFF64748B)),
           ),
           const SizedBox(height: 16),
 
-          // SECTION 1: INPUT PARAMETER
+          // SECTION 1: INPUT
           Container(
             padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: const Color(0xFFE2E8F0)),
-            ),
+            decoration: _cardDecoration(),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text(
-                      'Parameter Transaksi',
-                      style: TextStyle(
+                const Text('Parameter',
+                    style: TextStyle(
                         fontSize: 13.5,
                         fontWeight: FontWeight.bold,
-                        color: Color(0xFFBE123C),
-                      ),
-                    ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 8, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFF8FAFC),
-                        borderRadius: BorderRadius.circular(4),
-                        border: Border.all(color: const Color(0xFFE2E8F0)),
-                      ),
-                      child: const Text(
-                        'Antam / UBS',
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
-                          color: Color(0xFF64748B),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
+                        color: _accent)),
                 const Divider(height: 20, color: Color(0xFFF1F5F9)),
-
-                // Transaction Type Toggle
-                const Text('Jenis Transaksi',
-                    style: TextStyle(
-                        fontSize: 12.5,
-                        fontWeight: FontWeight.w500,
-                        color: Color(0xFF334155))),
-                const SizedBox(height: 6),
-                Container(
-                  padding: const EdgeInsets.all(4),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFF1F5F9),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: InkWell(
-                          onTap: () {
-                            setState(() {
-                              _transactionType = 'buy';
-                            });
-                          },
-                          borderRadius: BorderRadius.circular(8),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(vertical: 8),
-                            decoration: BoxDecoration(
-                              color: _transactionType == 'buy'
-                                  ? const Color(0xFFBE123C)
-                                  : Colors.transparent,
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(
-                                  Icons.shopping_bag_outlined,
-                                  size: 16,
-                                  color: _transactionType == 'buy'
-                                      ? Colors.white
-                                      : const Color(0xFF64748B),
-                                ),
-                                const SizedBox(width: 6),
-                                Text(
-                                  'Beli Batangan',
-                                  style: TextStyle(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w600,
-                                    color: _transactionType == 'buy'
-                                        ? Colors.white
-                                        : const Color(0xFF64748B),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                      Expanded(
-                        child: InkWell(
-                          onTap: () {
-                            setState(() {
-                              _transactionType = 'sell';
-                            });
-                          },
-                          borderRadius: BorderRadius.circular(8),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(vertical: 8),
-                            decoration: BoxDecoration(
-                              color: _transactionType == 'sell'
-                                  ? const Color(0xFFBE123C)
-                                  : Colors.transparent,
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(
-                                  Icons.currency_exchange_rounded,
-                                  size: 16,
-                                  color: _transactionType == 'sell'
-                                      ? Colors.white
-                                      : const Color(0xFF64748B),
-                                ),
-                                const SizedBox(width: 6),
-                                Text(
-                                  'Jual / Buyback',
-                                  style: TextStyle(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w600,
-                                    color: _transactionType == 'sell'
-                                        ? Colors.white
-                                        : const Color(0xFF64748B),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
+                _buildField('Modal', _modalC, prefix: 'Rp '),
+                const SizedBox(height: 12),
+                _buildField('Kurs (Rp per 1 USD)', _kursC, prefix: 'Rp '),
+                const SizedBox(height: 12),
+                _buildField('Harga Beli / HB (USD per ons)', _hbC,
+                    suffix: 'USD'),
+                const SizedBox(height: 12),
+                _buildField('Harga Jual / HJ (USD per ons)', _hjC,
+                    suffix: 'USD'),
                 const SizedBox(height: 12),
 
-                // Weight in Grams & Quick Pick
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: const [
-                    Text('Berat Batangan (Gram)',
-                        style: TextStyle(
-                            fontSize: 12.5,
-                            fontWeight: FontWeight.w500,
-                            color: Color(0xFF334155))),
-                    Text('Presisi Akurat',
-                        style:
-                            TextStyle(fontSize: 11, color: Color(0xFF64748B))),
-                  ],
-                ),
-                const SizedBox(height: 4),
-                TextField(
-                  controller: _weightController,
-                  keyboardType:
-                      const TextInputType.numberWithOptions(decimal: true),
-                  onChanged: (val) => setState(() {}),
-                  style: const TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFFBE123C)),
-                  decoration: InputDecoration(
-                    suffixText: 'GRAM',
-                    suffixStyle: const TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: Color(0xFF64748B)),
-                    filled: true,
-                    fillColor: const Color(0xFFF8FAFC),
-                    contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 12, vertical: 10),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: const BorderSide(color: Color(0xFFBE123C)),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 8),
-
-                // Quick Pick Pills
-                Row(
-                  children: [5, 10, 25, 50, 100].map((val) {
-                    final bool isSelected =
-                        double.tryParse(_weightController.text) == val;
-                    return Expanded(
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 2),
-                        child: InkWell(
-                          onTap: () {
-                            setState(() {
-                              _weightController.text = val.toString();
-                            });
-                          },
-                          borderRadius: BorderRadius.circular(8),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(vertical: 6),
-                            decoration: BoxDecoration(
-                              color: isSelected
-                                  ? const Color(0xFFBE123C)
-                                  : Colors.white,
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border.all(
-                                color: isSelected
-                                    ? const Color(0xFFBE123C)
-                                    : const Color(0xFFE2E8F0),
-                              ),
-                            ),
-                            child: Center(
-                              child: Text(
-                                '${val}g',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w600,
-                                  color: isSelected
-                                      ? Colors.white
-                                      : const Color(0xFF64748B),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    );
-                  }).toList(),
-                ),
-                const SizedBox(height: 12),
-
-                // Purity / Kadar Dropdown
-                const Text('Kadar Kemurnian',
-                    style: TextStyle(
-                        fontSize: 12.5,
-                        fontWeight: FontWeight.w500,
-                        color: Color(0xFF334155))),
-                const SizedBox(height: 4),
+                // TOZ (tetap)
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
                     color: const Color(0xFFF8FAFC),
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(color: const Color(0xFFE2E8F0)),
                   ),
-                  child: DropdownButtonHideUnderline(
-                    child: DropdownButton<double>(
-                      value: _purityValue,
-                      isExpanded: true,
-                      style: const TextStyle(
-                          fontSize: 13.5,
-                          fontWeight: FontWeight.w500,
-                          color: Color(0xFFBE123C)),
-                      onChanged: (val) {
-                        if (val != null) {
-                          setState(() {
-                            _purityValue = val;
-                          });
-                        }
-                      },
-                      items: _purityLabelMap.entries.map((entry) {
-                        return DropdownMenuItem<double>(
-                          value: entry.key,
-                          child: Text(entry.value),
-                        );
-                      }).toList(),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 12),
-
-                // Base Price Input
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: const [
-                    Text('Harga Dasar per Gram',
-                        style: TextStyle(
-                            fontSize: 12.5,
-                            fontWeight: FontWeight.w500,
-                            color: Color(0xFF334155))),
-                    Row(
-                      children: [
-                        CircleAvatar(
-                            radius: 3, backgroundColor: Color(0xFF10B981)),
-                        SizedBox(width: 4),
-                        Text(
-                          'Spot Acuan',
+                  child: const Row(
+                    children: [
+                      Icon(Icons.lock_outline_rounded,
+                          size: 16, color: Color(0xFF64748B)),
+                      SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'TOZ (troy ounce) = 31,1 gram. Ketetapan, tidak bisa diubah.',
                           style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w600,
-                            color: Color(0xFF059669),
-                          ),
+                              fontSize: 12, color: Color(0xFF64748B)),
                         ),
-                      ],
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 4),
-                TextField(
-                  controller: _basePriceController,
-                  keyboardType:
-                      const TextInputType.numberWithOptions(decimal: true),
-                  onChanged: (val) => setState(() {}),
-                  style: const TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFFBE123C)),
-                  decoration: InputDecoration(
-                    prefixText: 'Rp ',
-                    prefixStyle: const TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: Color(0xFF64748B)),
-                    filled: true,
-                    fillColor: const Color(0xFFF8FAFC),
-                    contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 12, vertical: 10),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: const BorderSide(color: Color(0xFFBE123C)),
-                    ),
+                      ),
+                    ],
                   ),
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 10),
 
-                // NPWP Status Switch
+                // Pembulatan
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
@@ -598,32 +348,35 @@ class _GoldCalculatorState extends State<GoldCalculator> {
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text('Kepemilikan NPWP',
+                      const Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('Pembulatan seperti catatan',
+                                style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                    color: _accent)),
+                            Text(
+                              'Rp per gram dibulatkan ke bawah, gram 2 desimal.',
                               style: TextStyle(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w600,
-                                  color: Color(0xFFBE123C))),
-                          Text(
-                            'Tarif PPh 22: ${_hasNpwp ? "0.25% (dengan NPWP)" : "0.50% (tanpa NPWP)"}',
-                            style: const TextStyle(
-                                fontSize: 11.5, color: Color(0xFF64748B)),
-                          ),
-                        ],
+                                  fontSize: 11.5, color: Color(0xFF64748B)),
+                            ),
+                          ],
+                        ),
                       ),
                       Switch(
-                        value: _hasNpwp,
-                        activeThumbColor: const Color(0xFFBE123C), // Menggantikan activeColor
-                        onChanged: (val) {
-                          setState(() {
-                            _hasNpwp = val;
-                          });
-                        },
+                        value: _roundDown,
+                        activeThumbColor: _accent,
+                        onChanged: (v) => setState(() => _roundDown = v),
                       ),
                     ],
                   ),
+                ),
+                const SizedBox(height: 10),
+                const Text(
+                  'Nilai awal di atas adalah contoh dari catatan (untung Rp 48.374).',
+                  style: TextStyle(fontSize: 11, color: Color(0xFF94A3B8)),
                 ),
                 const SizedBox(height: 12),
 
@@ -633,40 +386,32 @@ class _GoldCalculatorState extends State<GoldCalculator> {
                   children: [
                     InkWell(
                       onTap: _handleReset,
-                      child: Row(
-                        children: const [
+                      child: const Row(
+                        children: [
                           Icon(Icons.restart_alt_rounded,
                               size: 16, color: Color(0xFF64748B)),
                           SizedBox(width: 4),
-                          Text(
-                            'Reset Form',
-                            style: TextStyle(
-                              fontSize: 12.5,
-                              fontWeight: FontWeight.w500,
-                              color: Color(0xFF64748B),
-                            ),
-                          ),
+                          Text('Reset Form',
+                              style: TextStyle(
+                                  fontSize: 12.5,
+                                  fontWeight: FontWeight.w500,
+                                  color: Color(0xFF64748B))),
                         ],
                       ),
                     ),
                     InkWell(
-                      onTap: () {
-                        setState(() {
-                          _showFormula = !_showFormula;
-                        });
-                      },
+                      onTap: () => setState(() => _showFormula = !_showFormula),
                       child: Row(
                         children: [
                           const Icon(Icons.menu_book_rounded,
-                              size: 16, color: Color(0xFFBE123C)),
+                              size: 16, color: _accent),
                           const SizedBox(width: 4),
                           Text(
                             _showFormula ? 'Tutup Rumus' : 'Lihat Rumus',
                             style: const TextStyle(
-                              fontSize: 12.5,
-                              fontWeight: FontWeight.w600,
-                              color: Color(0xFFBE123C),
-                            ),
+                                fontSize: 12.5,
+                                fontWeight: FontWeight.w600,
+                                color: _accent),
                           ),
                         ],
                       ),
@@ -678,361 +423,367 @@ class _GoldCalculatorState extends State<GoldCalculator> {
           ),
           const SizedBox(height: 12),
 
-          // SECTION 2: PROSES & RUMUS PERHITUNGAN
+          // SECTION 2: LANGKAH PERHITUNGAN
           if (_showFormula) ...[
+            _buildSteps(calc),
+            const SizedBox(height: 12),
+          ],
+
+          // SECTION 3: HASIL
+          _buildResult(calc),
+        ],
+      ),
+    );
+  }
+
+  // ---------- Widget bantu ----------
+
+  BoxDecoration _cardDecoration() => BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      );
+
+  Widget _buildField(String label, TextEditingController c,
+      {String? prefix, String? suffix}) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label,
+            style: const TextStyle(
+                fontSize: 12.5,
+                fontWeight: FontWeight.w500,
+                color: Color(0xFF334155))),
+        const SizedBox(height: 4),
+        TextField(
+          controller: c,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          onChanged: (_) => setState(() {}),
+          style: const TextStyle(
+              fontSize: 15, fontWeight: FontWeight.bold, color: _accent),
+          decoration: InputDecoration(
+            prefixText: prefix,
+            prefixStyle: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFF64748B)),
+            suffixText: suffix,
+            suffixStyle: const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFF64748B)),
+            filled: true,
+            fillColor: const Color(0xFFF8FAFC),
+            contentPadding:
+                const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: _accent),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSteps(GoldCalculation? c) {
+    final steps = <List<String>>[
+      [
+        'Harga beli per gram',
+        'HB × Kurs ÷ TOZ',
+        c == null
+            ? '-'
+            : '${_usd(c.hargaBeliUsd)} × ${_rp(c.kurs)} ÷ 31,1 = Rp ${_rp(c.hbPerGram)}',
+      ],
+      [
+        'Harga jual per gram',
+        'HJ × Kurs ÷ TOZ',
+        c == null
+            ? '-'
+            : '${_usd(c.hargaJualUsd)} × ${_rp(c.kurs)} ÷ 31,1 = Rp ${_rp(c.hjPerGram)}',
+      ],
+      [
+        'Selisih per gram',
+        'Hasil 2 − Hasil 1',
+        c == null
+            ? '-'
+            : '${_rp(c.hjPerGram)} − ${_rp(c.hbPerGram)} = Rp ${_rp(c.selisihPerGram)}',
+      ],
+      [
+        'Jumlah emas (anggap itu gram emasnya)',
+        'Modal ÷ Hasil 1',
+        c == null
+            ? '-'
+            : '${_rp(c.modal)} ÷ ${_rp(c.hbPerGram)} = ${_gramText(c.gram)} gram',
+      ],
+      [
+        'Untung / Rugi',
+        'Hasil 3 × Hasil 4',
+        c == null
+            ? '-'
+            : '${_rp(c.selisihPerGram)} × ${_gramText(c.gram)} = Rp ${_rp(c.untung)}',
+      ],
+    ];
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(
+            children: [
+              Icon(Icons.functions_rounded, size: 18, color: _accent),
+              SizedBox(width: 6),
+              Text('Langkah Perhitungan',
+                  style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.bold,
+                      color: _accent)),
+            ],
+          ),
+          const SizedBox(height: 10),
+          for (int i = 0; i < steps.length; i++) ...[
             Container(
-              padding: const EdgeInsets.all(16),
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: const Color(0xFFF8FAFC),
-                borderRadius: BorderRadius.circular(16),
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
                 border: Border.all(color: const Color(0xFFE2E8F0)),
               ),
-              child: Column(
+              child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: const [
-                      Row(
-                        children: [
-                          Icon(Icons.functions_rounded,
-                              size: 18, color: Color(0xFFBE123C)),
-                          SizedBox(width: 6),
-                          Text(
-                            'Langkah Simulasi Perhitungan',
-                            style: TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.bold,
-                              color: Color(0xFFBE123C),
-                            ),
-                          ),
-                        ],
-                      ),
-                      Text(
-                        'Regulasi Pajak PMK',
-                        style: TextStyle(fontSize: 11, color: Color(0xFF64748B)),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 10),
                   Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: const Color(0xFFE2E8F0)),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: const [
-                        Text(
-                          'Rumus Total Nilai:',
-                          style: TextStyle(
-                              fontSize: 11.5,
-                              fontWeight: FontWeight.w500,
-                              color: Color(0xFF64748B)),
-                        ),
-                        SizedBox(height: 2),
-                        Text(
-                          'Total = (Berat × Kadar × Harga Dasar) + Biaya Cetak ± Pajak PPh 22',
-                          style: TextStyle(
-                            fontSize: 12.5,
+                    width: 22,
+                    height: 22,
+                    alignment: Alignment.center,
+                    decoration: const BoxDecoration(
+                        color: _accent, shape: BoxShape.circle),
+                    child: Text('${i + 1}',
+                        style: const TextStyle(
+                            fontSize: 11,
                             fontWeight: FontWeight.bold,
-                            color: Color(0xFFBE123C),
-                          ),
-                        ),
-                      ],
-                    ),
+                            color: Colors.white)),
                   ),
-                  const SizedBox(height: 8),
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: const Color(0xFFE2E8F0)),
-                    ),
+                  const SizedBox(width: 10),
+                  Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text(
-                          'Langkah Aktif:',
-                          style: TextStyle(
-                              fontSize: 11.5,
-                              fontWeight: FontWeight.w500,
-                              color: Color(0xFF64748B)),
-                        ),
+                        Text(steps[i][0],
+                            style: const TextStyle(
+                                fontSize: 11.5, color: Color(0xFF64748B))),
                         const SizedBox(height: 2),
-                        Text(
-                          '${calc.weight}g × Rp ${_formatRupiah(calc.basePrice)} = Rp ${_formatRupiah(calc.weight * calc.purityValue * calc.basePrice)}',
-                          style: const TextStyle(
-                            fontSize: 12.5,
-                            fontWeight: FontWeight.bold,
-                            color: Color(0xFFBE123C),
-                          ),
-                        ),
-                        const Divider(height: 12, color: Color(0xFFF1F5F9)),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            const Text('Ongkos Cetak CertiCard:',
-                                style: TextStyle(
-                                    fontSize: 12, color: Color(0xFF64748B))),
-                            Text(
-                              _transactionType == 'buy'
-                                  ? 'Rp ${_formatRupiah(calc.mintCost)}'
-                                  : 'Rp 0 (Buyback)',
-                              style: const TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.bold,
-                                  color: Color(0xFFBE123C)),
-                            ),
-                          ],
-                        ),
+                        Text(steps[i][1],
+                            style: const TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.bold,
+                                color: Color(0xFF0F172A))),
+                        const SizedBox(height: 2),
+                        Text(steps[i][2],
+                            style: const TextStyle(
+                                fontSize: 12.5, color: Color(0xFF334155))),
                       ],
                     ),
                   ),
                 ],
               ),
             ),
-            const SizedBox(height: 12),
+            if (i != steps.length - 1) const SizedBox(height: 8),
           ],
+        ],
+      ),
+    );
+  }
 
-          // SECTION 3: HASIL PERHITUNGAN
+  Widget _buildResult(GoldCalculation? c) {
+    if (c == null) {
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(18),
+        decoration: _cardDecoration(),
+        child: const Column(
+          children: [
+            Icon(Icons.calculate_outlined, size: 32, color: Color(0xFF94A3B8)),
+            SizedBox(height: 8),
+            Text('Belum ada hasil',
+                style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF0F172A))),
+            SizedBox(height: 4),
+            Text(
+              'Isi Modal, Kurs, HB, dan HJ dengan angka lebih dari 0.',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 12.5, color: Color(0xFF64748B)),
+            ),
+          ],
+        ),
+      );
+    }
+
+    final bool rugi = c.untung < 0;
+    final Color color = rugi ? _accent : _profitColor;
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: _cardDecoration(),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('HASIL PERHITUNGAN',
+              style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF64748B),
+                  letterSpacing: 0.5)),
+          const SizedBox(height: 10),
           Container(
-            padding: const EdgeInsets.all(16),
+            width: double.infinity,
+            padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: const Color(0xFFE2E8F0)),
+              color: color.withValues(alpha: 0.07),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: color.withValues(alpha: 0.3)),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text(
-                      'HASIL SIMULASI FISIK',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: Color(0xFF64748B),
-                        letterSpacing: 0.5,
-                      ),
-                    ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 8, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFF8FAFC),
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: const Color(0xFFE2E8F0)),
-                      ),
-                      child: Text(
-                        _transactionType == 'buy'
-                            ? 'Estimasi Pembelian'
-                            : 'Estimasi Penjualan',
-                        style: const TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
-                          color: Color(0xFFBE123C),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 10),
-
-                // Main High-Impact Total
-                const Text(
-                  'ESTIMASI TOTAL AKHIR',
-                  style: TextStyle(
-                      fontSize: 11.5,
-                      fontWeight: FontWeight.w500,
-                      color: Color(0xFF64748B)),
-                ),
+                Text(rugi ? 'RUGI' : 'UNTUNG',
+                    style: TextStyle(
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w700,
+                        color: color,
+                        letterSpacing: 0.5)),
+                const SizedBox(height: 2),
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.baseline,
                   textBaseline: TextBaseline.alphabetic,
                   children: [
-                    const Text(
-                      'Rp ',
-                      style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.bold,
-                          color: Color(0xFF64748B)),
-                    ),
-                    Text(
-                      _formatRupiah(calc.grandTotal),
-                      style: const TextStyle(
-                        fontSize: 32,
-                        fontWeight: FontWeight.w800,
-                        color: Color(0xFFBE123C),
-                        letterSpacing: -0.5,
-                      ),
-                    ),
+                    Text('Rp ',
+                        style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
+                            color: color)),
+                    Text(_rp(c.untung.abs()),
+                        style: TextStyle(
+                            fontSize: 32,
+                            fontWeight: FontWeight.w800,
+                            color: color,
+                            letterSpacing: -0.5)),
                   ],
-                ),
-                const SizedBox(height: 12),
-                const Divider(height: 1, color: Color(0xFFF1F5F9)),
-                const SizedBox(height: 12),
-
-                // Breakdown Rows
-                _buildBreakdownRow(
-                    'Harga Dasar Logam (${calc.weight}g)',
-                    'Rp ${_formatRupiah(calc.weight * calc.purityValue * calc.basePrice)}'),
-                const SizedBox(height: 6),
-                _buildBreakdownRow('Biaya Cetak Kemasan CertiCard',
-                    'Rp ${_formatRupiah(calc.mintCost)}'),
-                const SizedBox(height: 6),
-                _buildBreakdownRow(
-                    'Pajak PPh 22 (${calc.hasNpwp ? "0.25% NPWP" : "0.50%"})',
-                    'Rp ${_formatRupiah(calc.taxAmount)}'),
-                const SizedBox(height: 12),
-
-                // Buyback Guarantee Card
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFF8FAFC),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: const Color(0xFFE2E8F0)),
-                  ),
-                  child: Column(
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Row(
-                            children: const [
-                              Icon(Icons.verified_user_rounded,
-                                  size: 16, color: Color(0xFF059669)),
-                              SizedBox(width: 4),
-                              Text(
-                                'Estimasi Nilai Buyback',
-                                style: TextStyle(
-                                  fontSize: 12.5,
-                                  fontWeight: FontWeight.bold,
-                                  color: Color(0xFFBE123C),
-                                ),
-                              ),
-                            ],
-                          ),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 6, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFECFDF5),
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: const Color(0xFFA7F3D0)),
-                            ),
-                            child: const Text(
-                              'Spread Pasar ~8.4%',
-                              style: TextStyle(
-                                fontSize: 10.5,
-                                fontWeight: FontWeight.w600,
-                                color: Color(0xFF047857),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 6),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          const Text('Nilai Pembelian Kembali:',
-                              style: TextStyle(
-                                  fontSize: 12, color: Color(0xFF64748B))),
-                          Text(
-                            'Rp ${_formatRupiah(calc.buybackEstimate)}',
-                            style: const TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.bold,
-                              color: Color(0xFFBE123C),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 14),
-
-                // Action Buttons
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton.icon(
-                    onPressed: _handleSave,
-                    icon: Icon(
-                      _savedSuccess
-                          ? Icons.check_circle_rounded
-                          : Icons.bookmark_add_rounded,
-                      size: 18,
-                    ),
-                    label: Text(
-                      _savedSuccess
-                          ? 'Tersimpan di Riwayat!'
-                          : 'Simpan ke Riwayat',
-                    ),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: _savedSuccess
-                          ? const Color(0xFF059669)
-                          : const Color(0xFFBE123C),
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      elevation: 0,
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12)),
-                      textStyle: const TextStyle(
-                          fontSize: 13.5, fontWeight: FontWeight.w600),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                SizedBox(
-                  width: double.infinity,
-                  child: OutlinedButton.icon(
-                    onPressed: () => widget.onOpenDetailModal(calc),
-                    icon: const Icon(Icons.receipt_long_rounded, size: 18),
-                    label: const Text('Lihat Rincian Lengkap'),
-                    style: OutlinedButton.styleFrom(
-                      backgroundColor: const Color(0xFFF8FAFC),
-                      foregroundColor: const Color(0xFFBE123C),
-                      side: const BorderSide(color: Color(0xFFE2E8F0)),
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12)),
-                      textStyle: const TextStyle(
-                          fontSize: 13, fontWeight: FontWeight.w600),
-                    ),
-                  ),
                 ),
               ],
             ),
+          ),
+          const SizedBox(height: 12),
+          _row('Emas yang didapat', '${_gramText(c.gram)} gram'),
+          const SizedBox(height: 6),
+          _row('Harga beli per gram', 'Rp ${_rp(c.hbPerGram)}'),
+          const SizedBox(height: 6),
+          _row('Harga jual per gram', 'Rp ${_rp(c.hjPerGram)}'),
+          const SizedBox(height: 6),
+          _row('Selisih per gram', 'Rp ${_rp(c.selisihPerGram)}'),
+          const SizedBox(height: 6),
+          _row('Nilai akhir', 'Rp ${_rp(c.nilaiAkhir)}'),
+          const SizedBox(height: 14),
+
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: () => _handleSave(c),
+              icon: Icon(
+                  _savedSuccess
+                      ? Icons.check_circle_rounded
+                      : Icons.bookmark_add_rounded,
+                  size: 18),
+              label: Text(_savedSuccess
+                  ? 'Tersimpan di Riwayat!'
+                  : 'Simpan ke Riwayat'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor:
+                    _savedSuccess ? _profitColor : _accent,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12)),
+                textStyle: const TextStyle(
+                    fontSize: 13.5, fontWeight: FontWeight.w600),
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: () => widget.onOpenDetailModal(c),
+              icon: const Icon(Icons.receipt_long_rounded, size: 18),
+              label: const Text('Lihat Rincian Lengkap'),
+              style: OutlinedButton.styleFrom(
+                backgroundColor: const Color(0xFFF8FAFC),
+                foregroundColor: _accent,
+                side: const BorderSide(color: Color(0xFFE2E8F0)),
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12)),
+                textStyle: const TextStyle(
+                    fontSize: 13, fontWeight: FontWeight.w600),
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          ResultActions(
+            title: 'Kalkulator Emas Fisik',
+            rows: _shareRows(c),
+            color: _accent,
           ),
         ],
       ),
     );
   }
 
-  Widget _buildBreakdownRow(String label, String value) {
+  // Baris untuk dibagikan / dicetak
+  List<MapEntry<String, String>> _shareRows(GoldCalculation c) {
+    final bool rugi = c.untung < 0;
+    return [
+      MapEntry('Tanggal', '${c.formattedDate} ${c.formattedTime}'),
+      const MapEntry('Input', ''),
+      MapEntry('Modal', 'Rp ${_rp(c.modal)}'),
+      MapEntry('Kurs', 'Rp ${_rp(c.kurs)} per USD'),
+      MapEntry('Harga beli (HB)', '${_usd(c.hargaBeliUsd)} USD per ons'),
+      MapEntry('Harga jual (HJ)', '${_usd(c.hargaJualUsd)} USD per ons'),
+      const MapEntry('Hasil', ''),
+      MapEntry('Harga beli per gram', 'Rp ${_rp(c.hbPerGram)}'),
+      MapEntry('Harga jual per gram', 'Rp ${_rp(c.hjPerGram)}'),
+      MapEntry('Selisih per gram', 'Rp ${_rp(c.selisihPerGram)}'),
+      MapEntry('Emas yang didapat', '${_gramText(c.gram)} gram'),
+      MapEntry(rugi ? 'RUGI' : 'UNTUNG', 'Rp ${_rp(c.untung.abs())}'),
+      MapEntry('Nilai akhir', 'Rp ${_rp(c.nilaiAkhir)}'),
+    ];
+  }
+
+  Widget _row(String label, String value) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
         Text(label,
             style: const TextStyle(fontSize: 12.5, color: Color(0xFF64748B))),
-        Text(
-          value,
-          style: const TextStyle(
-            fontSize: 12.5,
-            fontWeight: FontWeight.w600,
-            color: Color(0xFFBE123C),
-          ),
-        ),
+        Text(value,
+            style: const TextStyle(
+                fontSize: 12.5,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFF0F172A))),
       ],
     );
   }

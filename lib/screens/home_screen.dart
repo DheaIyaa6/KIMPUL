@@ -47,6 +47,10 @@ class _HomeScreenState extends State<HomeScreen> {
   // State navigasi internal di tab Kalkulator
   CalcView? _selectedCalcView;
 
+  // Data awal saat "Hitung Ulang" dari Riwayat
+  PivotCalculation? _pivotInit;
+  GoldCalculation? _goldInit;
+
   // List Riwayat Perhitungan Local State
   final List<dynamic> _historyItems = [];
 
@@ -209,7 +213,251 @@ class _HomeScreenState extends State<HomeScreen> {
     setState(() {
       _selectedIndex = index;
       _selectedCalcView = null;
+      _pivotInit = null;
+      _goldInit = null;
     });
+  }
+
+  // ---------- Riwayat perhitungan ----------
+
+  // Format Indonesia: 24.526 / 4.144,68
+  String _fmtNum(double v, {int decimals = 2}) {
+    final negative = v < 0;
+    final parts = v.abs().toStringAsFixed(decimals).split('.');
+    final intPart = parts[0].replaceAllMapped(
+      RegExp(r'\B(?=(\d{3})+(?!\d))'),
+      (m) => '.',
+    );
+    final result = parts.length > 1 ? '$intPart,${parts[1]}' : intPart;
+    return negative ? '-$result' : result;
+  }
+
+  String _fmtRp(double v) => _fmtNum(v, decimals: 0);
+
+  // Ubah hasil kalkulator jadi item yang dikenali halaman Riwayat
+  HistoryItem? _historyFromCalc(dynamic e) {
+    if (e is PivotCalculation) {
+      return HistoryItem(
+        id: e.id,
+        type: 'pivot',
+        formattedDate: e.formattedDate,
+        formattedTime: e.formattedTime,
+        pair: e.pair,
+        bias: e.bias,
+        pp: e.pp,
+        r1: e.r1,
+        s1: e.s1,
+      );
+    }
+    if (e is GoldCalculation) {
+      final bool rugi = e.untung < 0;
+      return HistoryItem(
+        id: e.id,
+        type: 'gold',
+        formattedDate: e.formattedDate,
+        formattedTime: e.formattedTime,
+        weight: e.gram,
+        purityLabel: '${rugi ? "Rugi" : "Untung"} Rp ${_fmtRp(e.untung.abs())}',
+        grandTotal: e.nilaiAkhir,
+      );
+    }
+    return null;
+  }
+
+  // Terbaru di atas
+  List<HistoryItem> _buildCalcHistoryItems() {
+    final items = <HistoryItem>[];
+    for (final e in _historyItems.reversed) {
+      final HistoryItem? item = e is HistoryItem ? e : _historyFromCalc(e);
+      if (item != null) items.add(item);
+    }
+    return items;
+  }
+
+  void _showCalcDetail(dynamic calc) {
+    final item = _historyFromCalc(calc);
+    if (item != null) CalculationDetailModal.show(context, item);
+  }
+
+  // "Hitung Ulang" dari Riwayat: buka kalkulator dengan angka lama
+  void _recalculateFromHistory(HistoryItem item) {
+    for (final e in _historyItems) {
+      if (e is PivotCalculation && e.id == item.id) {
+        setState(() {
+          _pivotInit = e;
+          _goldInit = null;
+          _selectedIndex = 2;
+          _selectedCalcView = CalcView.pivot;
+        });
+        return;
+      }
+      if (e is GoldCalculation && e.id == item.id) {
+        setState(() {
+          _goldInit = e;
+          _pivotInit = null;
+          _selectedIndex = 2;
+          _selectedCalcView = CalcView.gold;
+        });
+        return;
+      }
+    }
+  }
+
+  // Kartu "Perhitungan Terakhir" di Beranda (data asli, bukan contoh)
+  Widget _buildLastCalcCard() {
+    final box = BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(16),
+      border: Border.all(color: const Color(0xFFE2E8F0)),
+    );
+
+    final dynamic last = _historyItems.isNotEmpty ? _historyItems.last : null;
+
+    String title = '';
+    String dateText = '';
+    List<List<String>> cols = [];
+
+    if (last is PivotCalculation) {
+      title = 'Pivot Point ${last.pair}';
+      dateText = '${last.formattedDate}, ${last.formattedTime}';
+      cols = [
+        ['Support 1 (S1)', _fmtNum(last.s1)],
+        ['Pivot (PP)', _fmtNum(last.pp)],
+        ['Resistance 1 (R1)', _fmtNum(last.r1)],
+      ];
+    } else if (last is GoldCalculation) {
+      final bool rugi = last.untung < 0;
+      title = 'Emas Fisik';
+      dateText = '${last.formattedDate}, ${last.formattedTime}';
+      cols = [
+        ['Emas', '${_fmtNum(last.gram)} g'],
+        [rugi ? 'Rugi' : 'Untung', 'Rp ${_fmtRp(last.untung.abs())}'],
+        ['Nilai Akhir', 'Rp ${_fmtRp(last.nilaiAkhir)}'],
+      ];
+    }
+
+    if (cols.isEmpty) {
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(18),
+        decoration: box,
+        child: const Column(
+          children: [
+            Icon(Icons.calculate_outlined, size: 28, color: Color(0xFF94A3B8)),
+            SizedBox(height: 8),
+            Text(
+              'Belum ada perhitungan',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.bold,
+                color: Color(0xFF0F172A),
+              ),
+            ),
+            SizedBox(height: 4),
+            Text(
+              'Simpan hasil dari kalkulator, nanti muncul di sini.',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 12.5, color: Color(0xFF64748B)),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: box,
+      child: Column(
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
+                child: Row(
+                  children: [
+                    const Icon(Icons.access_time,
+                        size: 20, color: Color(0xFF475569)),
+                    const SizedBox(width: 8),
+                    Flexible(
+                      child: Text(
+                        title,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF0F172A),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                dateText,
+                style: const TextStyle(fontSize: 11, color: Color(0xFF94A3B8)),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: [
+              for (int i = 0; i < cols.length; i++)
+                Column(
+                  children: [
+                    Text(
+                      cols[i][0],
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: i == 1
+                            ? const Color(0xFFE11D48)
+                            : const Color(0xFF64748B),
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      cols[i][1],
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.bold,
+                        color: i == 1
+                            ? const Color(0xFFE11D48)
+                            : const Color(0xFF0F172A),
+                      ),
+                    ),
+                  ],
+                ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          const Divider(color: Color(0xFFF1F5F9), height: 1),
+          const SizedBox(height: 12),
+          InkWell(
+            onTap: () {
+              setState(() {
+                _selectedIndex = 3;
+              });
+            },
+            child: const Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Buka rincian kalkulasi',
+                  style: TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF0F172A),
+                  ),
+                ),
+                Icon(Icons.chevron_right_rounded,
+                    size: 20, color: Color(0xFF0F172A)),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   // Tab 0: Beranda
@@ -731,96 +979,8 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           const SizedBox(height: 12),
 
-          // Card Hasil Perhitungan Terakhir
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: const Color(0xFFE2E8F0)),
-            ),
-            child: Column(
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Row(
-                      children: const [
-                        Icon(Icons.access_time, size: 20, color: Color(0xFF475569)),
-                        SizedBox(width: 8),
-                        Text(
-                          'Pivot Point Harian',
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.bold,
-                            color: Color(0xFF0F172A),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const Text(
-                      '02 Sep 2026, 14:30',
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: Color(0xFF94A3B8),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceAround,
-                  children: [
-                    Column(
-                      children: const [
-                        Text('Support 1 (S1)', style: TextStyle(fontSize: 11, color: Color(0xFF64748B))),
-                        SizedBox(height: 4),
-                        Text('2.317,50', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Color(0xFF0F172A))),
-                      ],
-                    ),
-                    Column(
-                      children: const [
-                        Text('Pivot (PP)', style: TextStyle(fontSize: 11, color: Color(0xFFE11D48))),
-                        SizedBox(height: 4),
-                        Text('2.331,50', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Color(0xFFE11D48))),
-                      ],
-                    ),
-                    Column(
-                      children: const [
-                        Text('Resistance 1 (R1)', style: TextStyle(fontSize: 11, color: Color(0xFF64748B))),
-                        SizedBox(height: 4),
-                        Text('2.352,80', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Color(0xFF0F172A))),
-                      ],
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                const Divider(color: Color(0xFFF1F5F9), height: 1),
-                const SizedBox(height: 12),
-                InkWell(
-                  onTap: () {
-                    setState(() {
-                      _selectedIndex = 3;
-                    });
-                  },
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: const [
-                      Text(
-                        'Buka rincian kalkulasi',
-                        style: TextStyle(
-                          fontSize: 12.5,
-                          fontWeight: FontWeight.w600,
-                          color: Color(0xFF0F172A),
-                        ),
-                      ),
-                      Icon(Icons.chevron_right_rounded, size: 20, color: Color(0xFF0F172A)),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
+          // Card Hasil Perhitungan Terakhir (data asli)
+          _buildLastCalcCard(),
           const SizedBox(height: 24),
 
           // Card Tentang KIMPUL
@@ -1005,9 +1165,12 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _buildCalculatorTab() {
     if (_selectedCalcView == CalcView.pivot) {
       return PivotCalculator(
+        key: ValueKey('pivot-${_pivotInit?.id ?? "baru"}'),
+        initialValues: _pivotInit,
         onBack: () {
           setState(() {
             _selectedCalcView = null;
+            _pivotInit = null;
           });
         },
         onSaveHistory: (calc) {
@@ -1018,13 +1181,16 @@ class _HomeScreenState extends State<HomeScreen> {
             const SnackBar(content: Text('Perhitungan Pivot disimpan!')),
           );
         },
-        onOpenDetailModal: (calc) {},
+        onOpenDetailModal: (calc) => _showCalcDetail(calc),
       );
     } else if (_selectedCalcView == CalcView.gold) {
       return GoldCalculator(
+        key: ValueKey('gold-${_goldInit?.id ?? "baru"}'),
+        initialValues: _goldInit,
         onBack: () {
           setState(() {
             _selectedCalcView = null;
+            _goldInit = null;
           });
         },
         onSaveHistory: (calc) {
@@ -1035,7 +1201,7 @@ class _HomeScreenState extends State<HomeScreen> {
             const SnackBar(content: Text('Perhitungan Emas Fisik disimpan!')),
           );
         },
-        onOpenDetailModal: (calc) {},
+        onOpenDetailModal: (calc) => _showCalcDetail(calc),
       );
     } else {
       return CalcHubScreen(
@@ -1061,7 +1227,7 @@ class _HomeScreenState extends State<HomeScreen> {
       _buildCalculatorTab(),
       HistoryScreen(
         historyItems: [
-          ..._historyItems.whereType<HistoryItem>(),
+          ..._buildCalcHistoryItems(),
           ..._buildLiveHistoryClosingItems(),
         ],
         onDeleteHistory: (id) {
@@ -1069,7 +1235,7 @@ class _HomeScreenState extends State<HomeScreen> {
             _historyItems.removeWhere((item) => item.id == id);
           });
         },
-        onRecalculate: (item) {},
+        onRecalculate: _recalculateFromHistory,
         onOpenDetailModal: (item) => CalculationDetailModal.show(context, item),
       ),
       ProfileScreen(
