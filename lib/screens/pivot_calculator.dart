@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 
 import 'package:kimpul/screens/prev_day_service.dart';
+import 'package:kimpul/screens/result_actions.dart';
 import 'package:kimpul/screens/tradingview_screen.dart';
 
 // Model Data Kalkulasi Pivot
@@ -429,6 +430,34 @@ class _PivotCalculatorState extends State<PivotCalculator> {
         _savedSuccess = false;
       });
     }
+  }
+
+  // Baris untuk dibagikan / dicetak
+  List<MapEntry<String, String>> _shareRows(PivotCalculation c) {
+    final double? open = _resultOpen;
+    final String signal = open == null
+        ? '-'
+        : (c.pp > open ? 'BUY' : (c.pp < open ? 'SELL' : 'NETRAL'));
+    return [
+      MapEntry('Produk', '${_product.label} (${_product.subtitle})'),
+      MapEntry('Tanggal', '${c.formattedDate} ${c.formattedTime}'),
+      if (open != null) MapEntry('Open hari ini', _f(open)),
+      MapEntry('Sinyal', signal),
+      const MapEntry('Data kemarin', ''),
+      MapEntry('High', _f(c.high)),
+      MapEntry('Low', _f(c.low)),
+      MapEntry('Close', _f(c.close)),
+      const MapEntry('Level Pivot', ''),
+      MapEntry('R4', _f(c.r4)),
+      MapEntry('R3', _f(c.r3)),
+      MapEntry('R2', _f(c.r2)),
+      MapEntry('R1', _f(c.r1)),
+      MapEntry('PP', _f(c.pp)),
+      MapEntry('S1', _f(c.s1)),
+      MapEntry('S2', _f(c.s2)),
+      MapEntry('S3', _f(c.s3)),
+      MapEntry('S4', _f(c.s4)),
+    ];
   }
 
   void _openChart() {
@@ -1572,6 +1601,16 @@ class _PivotCalculatorState extends State<PivotCalculator> {
             ),
           ],
           const SizedBox(height: 12),
+
+          // Bagikan / cetak hasil
+          if (calc != null) ...[
+            ResultActions(
+              title: 'Pivot Point ${_product.label}',
+              rows: _shareRows(calc),
+              color: primaryColor,
+            ),
+            const SizedBox(height: 12),
+          ],
 
           // Tombol grafik TradingView untuk produk terpilih
           SizedBox(

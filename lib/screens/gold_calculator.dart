@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'package:kimpul/screens/result_actions.dart';
+
 // Model Data Kalkulasi Emas Fisik
 class GoldCalculation {
   final String id;
@@ -693,7 +695,7 @@ class _GoldCalculatorState extends State<GoldCalculator> {
           const SizedBox(height: 6),
           _row('Selisih per gram', 'Rp ${_rp(c.selisihPerGram)}'),
           const SizedBox(height: 6),
-          _row('Modal + ${rugi ? "rugi" : "untung"}', 'Rp ${_rp(c.nilaiAkhir)}'),
+          _row('Nilai akhir', 'Rp ${_rp(c.nilaiAkhir)}'),
           const SizedBox(height: 14),
 
           SizedBox(
@@ -740,9 +742,35 @@ class _GoldCalculatorState extends State<GoldCalculator> {
               ),
             ),
           ),
+          const SizedBox(height: 8),
+          ResultActions(
+            title: 'Kalkulator Emas Fisik',
+            rows: _shareRows(c),
+            color: _accent,
+          ),
         ],
       ),
     );
+  }
+
+  // Baris untuk dibagikan / dicetak
+  List<MapEntry<String, String>> _shareRows(GoldCalculation c) {
+    final bool rugi = c.untung < 0;
+    return [
+      MapEntry('Tanggal', '${c.formattedDate} ${c.formattedTime}'),
+      const MapEntry('Input', ''),
+      MapEntry('Modal', 'Rp ${_rp(c.modal)}'),
+      MapEntry('Kurs', 'Rp ${_rp(c.kurs)} per USD'),
+      MapEntry('Harga beli (HB)', '${_usd(c.hargaBeliUsd)} USD per ons'),
+      MapEntry('Harga jual (HJ)', '${_usd(c.hargaJualUsd)} USD per ons'),
+      const MapEntry('Hasil', ''),
+      MapEntry('Harga beli per gram', 'Rp ${_rp(c.hbPerGram)}'),
+      MapEntry('Harga jual per gram', 'Rp ${_rp(c.hjPerGram)}'),
+      MapEntry('Selisih per gram', 'Rp ${_rp(c.selisihPerGram)}'),
+      MapEntry('Emas yang didapat', '${_gramText(c.gram)} gram'),
+      MapEntry(rugi ? 'RUGI' : 'UNTUNG', 'Rp ${_rp(c.untung.abs())}'),
+      MapEntry('Nilai akhir', 'Rp ${_rp(c.nilaiAkhir)}'),
+    ];
   }
 
   Widget _row(String label, String value) {
