@@ -557,27 +557,6 @@ class NotificationModal extends StatelessWidget {
   Widget build(BuildContext context) {
     final primaryColor = Theme.of(context).colorScheme.primary;
 
-    final notifications = [
-      {
-        'title': 'Alert Pivot XAU/USD',
-        'desc': 'Harga spot menembus level R1 (\$2.352,80) dengan konfirmasi volume tinggi.',
-        'time': '15m lalu',
-        'unread': true,
-      },
-      {
-        'title': 'Koreksi Kurs Spot Emas Fisik Antam',
-        'desc': 'Harga dasar diperbarui menjadi Rp 1.150.000 / gram mengikuti sesi London.',
-        'time': '1j lalu',
-        'unread': true,
-      },
-      {
-        'title': 'Pembukaan Sesi Pasar New York',
-        'desc': 'Sesi perdagangan komoditas dibuka dengan likuiditas tinggi.',
-        'time': '3j lalu',
-        'unread': false,
-      },
-    ];
-
     return ModalWrapper(
       child: Padding(
         padding: const EdgeInsets.all(18),
@@ -603,49 +582,17 @@ class NotificationModal extends StatelessWidget {
               ],
             ),
             const Divider(height: 20, color: Color(0xFFE2E8F0)),
-            Column(
-              children: notifications.map((n) {
-                final bool unread = n['unread'] as bool;
-                return Container(
-                  margin: const EdgeInsets.only(bottom: 8),
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: unread ? primaryColor.withValues(alpha: 0.05) : Colors.white,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: unread ? primaryColor.withValues(alpha: 0.3) : const Color(0xFFE2E8F0)),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(n['title'] as String,
-                              style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.bold, color: Color(0xFF0F172A))),
-                          Text(n['time'] as String,
-                              style: const TextStyle(fontSize: 10.5, color: Color(0xFF94A3B8))),
-                        ],
-                      ),
-                      const SizedBox(height: 4),
-                      Text(n['desc'] as String,
-                          style: const TextStyle(fontSize: 12, color: Color(0xFF64748B), height: 1.3)),
-                    ],
-                  ),
-                );
-              }).toList(),
-            ),
-            const SizedBox(height: 10),
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton(
-                onPressed: () => Navigator.of(context).pop(),
-                style: OutlinedButton.styleFrom(
-                  backgroundColor: Colors.white,
-                  side: BorderSide(color: primaryColor.withValues(alpha: 0.3)),
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+
+            // Belum ada notifikasi masuk
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 28),
+              child: SizedBox(
+                width: double.infinity,
+                child: Text(
+                  'Belum ada notifikasi',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 13, color: Color(0xFF64748B)),
                 ),
-                child: Text('Tutup', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: primaryColor)),
               ),
             ),
           ],

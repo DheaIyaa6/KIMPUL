@@ -85,7 +85,7 @@ class HeaderWidget extends StatelessWidget implements PreferredSizeWidget {
                 ],
               ),
 
-              // Notification Button Icon dengan Red Dot
+              // Notification Button Icon (tanpa titik pink, karena belum ada notif)
               Material(
                 color: Colors.transparent,
                 child: InkWell(
@@ -95,31 +95,10 @@ class HeaderWidget extends StatelessWidget implements PreferredSizeWidget {
                     width: 40,
                     height: 40,
                     alignment: Alignment.center,
-                    child: Stack(
-                      children: [
-                        const Icon(
-                          Icons.notifications_none_rounded,
-                          size: 26,
-                          color: Color(0xFF334155),
-                        ),
-                        // Red Badge Dot
-                        Positioned(
-                          right: 1,
-                          top: 1,
-                          child: Container(
-                            width: 10,
-                            height: 10,
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFE93A56),
-                              shape: BoxShape.circle,
-                              border: Border.all(
-                                color: Colors.white,
-                                width: 2,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
+                    child: const Icon(
+                      Icons.notifications_none_rounded,
+                      size: 26,
+                      color: Color(0xFF334155),
                     ),
                   ),
                 ),
