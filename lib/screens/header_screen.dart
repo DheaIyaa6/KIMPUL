@@ -47,7 +47,7 @@ class HeaderWidget extends StatelessWidget implements PreferredSizeWidget {
                     ),
                     child: ClipOval(
                       child: Image.asset(
-                        'assets/images/trademark.png',
+                        'assets/images/logo_apk.jpeg',
                         fit: BoxFit.cover,
                         errorBuilder: (context, error, stackTrace) {
                           // Fallback jika aset gambar belum dimuat

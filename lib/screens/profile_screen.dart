@@ -206,8 +206,6 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
-  bool _showPrivacyInfo = false;
-
   // User yang sedang ditampilkan
   late UserProfile _currentUser;
 
@@ -338,6 +336,180 @@ class _ProfileScreenState extends State<ProfileScreen> {
       MaterialPageRoute(
         builder: (context) => const ChangePasswordScreen(),
       ),
+    );
+  }
+
+  // Popup About Me (Tentang KIMPUL), tanpa file baru
+  void _showAboutDialog() {
+    const boldDark =
+        TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF0F172A));
+
+    showDialog(
+      context: context,
+      builder: (dialogContext) {
+        return Dialog(
+          backgroundColor: Colors.white,
+          insetPadding: const EdgeInsets.symmetric(horizontal: 20),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+            side: const BorderSide(color: Color(0xFFE2E8F0)),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      width: 36,
+                      height: 36,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFFF1F2),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: const Color(0xFFFECDD3)),
+                      ),
+                      child: const Icon(
+                        Icons.info_outline_rounded,
+                        color: Color(0xFFE93A56),
+                        size: 20,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    const Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'About Me',
+                            style: TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFF0F172A),
+                            ),
+                          ),
+                          Text(
+                            'Identitas Resmi Aplikasi',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: Color(0xFF64748B),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    InkWell(
+                      onTap: () => Navigator.of(dialogContext).pop(),
+                      borderRadius: BorderRadius.circular(14),
+                      child: const Padding(
+                        padding: EdgeInsets.all(4),
+                        child: Icon(
+                          Icons.close_rounded,
+                          size: 20,
+                          color: Color(0xFF94A3B8),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                // LOGO KIMPUL (di atas teks penjelasan)
+                const SizedBox(height: 14),
+                Center(
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(16),
+                    child: Image.asset(
+                      'assets/images/logo_apk.jpeg',
+                      width: 96,
+                      height: 96,
+                      fit: BoxFit.contain,
+                      errorBuilder: (context, error, stackTrace) {
+                        return const SizedBox(
+                          width: 96,
+                          height: 96,
+                          child: Icon(
+                            Icons.broken_image_rounded,
+                            size: 32,
+                            color: Color(0xFF64748B),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                RichText(
+                  text: const TextSpan(
+                    style: TextStyle(
+                      fontSize: 12.5,
+                      color: Color(0xFF334155),
+                      height: 1.5,
+                    ),
+                    children: [
+                      TextSpan(
+                        text: 'KIMPUL ',
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      TextSpan(text: 'merupakan singkatan dari '),
+                      TextSpan(text: 'K', style: boldDark),
+                      TextSpan(text: 'alkulator '),
+                      TextSpan(text: 'I', style: boldDark),
+                      TextSpan(text: 'nformasi '),
+                      TextSpan(text: 'M', style: boldDark),
+                      TextSpan(text: 'arket untuk '),
+                      TextSpan(text: 'P', style: boldDark),
+                      TextSpan(text: 'erhitungan '),
+                      TextSpan(text: 'U', style: boldDark),
+                      TextSpan(text: 'ntung & '),
+                      TextSpan(text: 'L', style: boldDark),
+                      TextSpan(
+                        text:
+                            'oss, yaitu aplikasi yang dirancang untuk membantu pengguna melakukan berbagai perhitungan dalam aktivitas jual beli emas.',
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+                const Divider(height: 1, color: Color(0xFFF1F5F9)),
+                const SizedBox(height: 16),
+
+                // TRADEMARK / CREDIT PERUSAHAAN (kotak penuh, sudut melengkung)
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: Image.asset(
+                    'assets/images/trademark_apk.jpeg',
+                    width: double.infinity,
+                    fit: BoxFit.fitWidth,
+                    errorBuilder: (context, error, stackTrace) {
+                      return Container(
+                        width: double.infinity,
+                        height: 100,
+                        color: const Color(0xFFF1F5F9),
+                        child: const Icon(
+                          Icons.broken_image_rounded,
+                          size: 32,
+                          color: Color(0xFF64748B),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+                const SizedBox(height: 8),
+                const Center(
+                  child: Text(
+                    'Trademark KIMPUL',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontStyle: FontStyle.italic,
+                      color: Color(0xFF64748B),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -488,11 +660,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   style:
                       const TextStyle(fontSize: 13, color: Color(0xFF64748B)),
                 ),
-                // TODO: HAPUS setelah selesai debug
-                Text(
-                  'DEBUG: ${_currentUser.avatarUrl.length > 40 ? _currentUser.avatarUrl.substring(0, 40) : _currentUser.avatarUrl} (len=${_currentUser.avatarUrl.length})',
-                  style: const TextStyle(fontSize: 10, color: Colors.red),
-                ),
               ],
             ),
           ),
@@ -500,6 +667,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
           // UNIFIED MENU CONTAINER
           Container(
+            clipBehavior: Clip.antiAlias,
             decoration: BoxDecoration(
               color: Colors.white,
               borderRadius: BorderRadius.circular(16),
@@ -530,102 +698,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   },
                 ),
                 const Divider(height: 1, color: Color(0xFFF1F5F9)),
-                InkWell(
-                  onTap: () {
-                    setState(() {
-                      _showPrivacyInfo = !_showPrivacyInfo;
-                    });
-                  },
-                  borderRadius:
-                      const BorderRadius.vertical(bottom: Radius.circular(16)),
-                  child: Padding(
-                    padding: const EdgeInsets.all(14),
-                    child: Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFF8FAFC),
-                            borderRadius: BorderRadius.circular(10),
-                            border: Border.all(color: const Color(0xFFE2E8F0)),
-                          ),
-                          child: const Icon(
-                            Icons.privacy_tip_outlined,
-                            size: 20,
-                            color: Color(0xFF0F172A),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: const [
-                              Text(
-                                'Privasi Data Perhitungan',
-                                style: TextStyle(
-                                  fontSize: 13.5,
-                                  fontWeight: FontWeight.w600,
-                                  color: Color(0xFF0F172A),
-                                ),
-                              ),
-                              Text(
-                                'Data perhitungan Anda disimpan privat',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: Color(0xFF64748B),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        Icon(
-                          _showPrivacyInfo
-                              ? Icons.expand_less_rounded
-                              : Icons.chevron_right_rounded,
-                          size: 20,
-                          color: const Color(0xFF94A3B8),
-                        ),
-                      ],
-                    ),
-                  ),
+
+                // ABOUT ME -> buka popup
+                _buildMenuItem(
+                  icon: Icons.info_outline_rounded,
+                  title: 'About Me',
+                  subtitle: 'Tentang KIMPUL, identitas resmi aplikasi',
+                  onTap: _showAboutDialog,
                 ),
               ],
             ),
           ),
 
-          if (_showPrivacyInfo) ...[
-            const SizedBox(height: 6),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: const Color(0xFFF8FAFC),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: const Color(0xFFE2E8F0)),
-              ),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: const [
-                  Icon(
-                    Icons.verified_user_rounded,
-                    size: 18,
-                    color: Color(0xFF059669),
-                  ),
-                  SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      'Seluruh data kalkulasi, riwayat transaksi, dan parameter perhitungan Anda tersimpan secara privat & aman hanya pada penyimpanan lokal perangkat Anda.',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Color(0xFF64748B),
-                        height: 1.4,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
           const SizedBox(height: 20),
 
           if (widget.onReplaySplash != null) ...[

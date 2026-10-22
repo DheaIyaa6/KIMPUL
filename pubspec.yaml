@@ -80,6 +80,8 @@ flutter:
   assets:
     - assets/images/splash_screen.png
     - assets/images/trademark.png
+    - assets/images/trademark_apk.jpeg
+    - assets/images/logo_apk.jpeg
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images
 
