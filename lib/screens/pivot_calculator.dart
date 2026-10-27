@@ -4,9 +4,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 
+import 'package:kimpul/screens/history_storage.dart';
 import 'package:kimpul/screens/prev_day_service.dart';
 import 'package:kimpul/screens/result_actions.dart';
-import 'package:kimpul/screens/tradingview_screen.dart';
 
 // Model Data Kalkulasi Pivot
 class PivotCalculation {
@@ -27,7 +27,7 @@ class PivotCalculation {
   final double s2;
   final double s3;
   final double s4;
-  final String bias; // 'bullish', 'bearish', 'sideway'
+  final String bias; // 'bullish', 'bearish', 'sideway' (hasil hitung) / 'buy', 'sell', 'netral' (di Riwayat)
   final double diff;
   final String type; // 'pivot'
 
@@ -417,10 +417,57 @@ class _PivotCalculatorState extends State<PivotCalculator> {
     });
   }
 
+  // Salinan hasil hitung untuk Riwayat: field bias diisi sinyal BUY/SELL
+  // (PP dibanding Open hari ini). Kalau Open belum ada, bias = 'none'
+  // sehingga badge di Riwayat tidak ditampilkan.
+  PivotCalculation _withSignal(PivotCalculation c) {
+    final double? open = _resultOpen;
+    final String signal = open == null
+        ? 'none'
+        : (c.pp > open ? 'buy' : (c.pp < open ? 'sell' : 'netral'));
+
+    return PivotCalculation(
+      id: c.id,
+      timestamp: c.timestamp,
+      formattedDate: c.formattedDate,
+      formattedTime: c.formattedTime,
+      pair: c.pair,
+      high: c.high,
+      low: c.low,
+      close: c.close,
+      pp: c.pp,
+      r1: c.r1,
+      r2: c.r2,
+      r3: c.r3,
+      r4: c.r4,
+      s1: c.s1,
+      s2: c.s2,
+      s3: c.s3,
+      s4: c.s4,
+      bias: signal,
+      diff: c.diff,
+    );
+  }
+
   void _handleSave() async {
     final calc = _result;
     if (calc == null) return;
-    widget.onSaveHistory(calc);
+    final saved = _withSignal(calc);
+
+    // Simpan ke cloud (per akun): tetap ada setelah logout & terlihat di semua HP
+    HistoryStorage.save(
+      id: saved.id,
+      type: 'pivot',
+      formattedDate: saved.formattedDate,
+      formattedTime: saved.formattedTime,
+      pair: saved.pair,
+      bias: saved.bias,
+      pp: saved.pp,
+      r1: saved.r1,
+      s1: saved.s1,
+    );
+
+    widget.onSaveHistory(saved);
     setState(() {
       _savedSuccess = true;
     });
@@ -458,18 +505,6 @@ class _PivotCalculatorState extends State<PivotCalculator> {
       MapEntry('S3', _f(c.s3)),
       MapEntry('S4', _f(c.s4)),
     ];
-  }
-
-  void _openChart() {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => TradingViewScreen(
-          symbol: _product.tvSymbol,
-          title: _product.label,
-        ),
-      ),
-    );
   }
 
   // ---------- Rincian langkah hitung (bisa diketuk) ----------
@@ -892,22 +927,6 @@ class _PivotCalculatorState extends State<PivotCalculator> {
                         ),
                       ),
                     ],
-                  ),
-                ),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  color: primaryColor.withValues(alpha: 0.08),
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: primaryColor.withValues(alpha: 0.2)),
-                ),
-                child: Text(
-                  'Formula Standard Floor',
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                    color: primaryColor,
                   ),
                 ),
               ),
@@ -1375,20 +1394,14 @@ class _PivotCalculatorState extends State<PivotCalculator> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            const Text(
-                              'HASIL PIVOT POINT',
-                              style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600,
-                                color: Color(0xFF515F74),
-                                letterSpacing: 0.5,
-                              ),
-                            ),
-                            _buildBiasBadge(calc.bias, primaryColor),
-                          ],
+                        const Text(
+                          'HASIL PIVOT POINT',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF515F74),
+                            letterSpacing: 0.5,
+                          ),
                         ),
                         const SizedBox(height: 10),
                         const Text(
@@ -1541,59 +1554,34 @@ class _PivotCalculatorState extends State<PivotCalculator> {
                   // Bottom Actions
                   Padding(
                     padding: const EdgeInsets.all(14),
-                    child: Column(
-                      children: [
-                        SizedBox(
-                          width: double.infinity,
-                          child: ElevatedButton.icon(
-                            onPressed: _handleSave,
-                            icon: Icon(
-                              _savedSuccess
-                                  ? Icons.check_circle_rounded
-                                  : Icons.bookmark_add_rounded,
-                              size: 18,
-                            ),
-                            label: Text(
-                              _savedSuccess
-                                  ? 'Tersimpan di Riwayat!'
-                                  : 'Simpan ke Riwayat',
-                            ),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: _savedSuccess
-                                  ? const Color(0xFF059669)
-                                  : primaryColor,
-                              foregroundColor: Colors.white,
-                              padding: const EdgeInsets.symmetric(vertical: 12),
-                              elevation: 0,
-                              shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12)),
-                              textStyle: const TextStyle(
-                                  fontSize: 13.5, fontWeight: FontWeight.w600),
-                            ),
-                          ),
+                    child: SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton.icon(
+                        onPressed: _handleSave,
+                        icon: Icon(
+                          _savedSuccess
+                              ? Icons.check_circle_rounded
+                              : Icons.bookmark_add_rounded,
+                          size: 18,
                         ),
-                        const SizedBox(height: 8),
-                        SizedBox(
-                          width: double.infinity,
-                          child: OutlinedButton.icon(
-                            onPressed: () => widget.onOpenDetailModal(calc),
-                            icon: Icon(Icons.visibility_outlined,
-                                size: 18, color: primaryColor),
-                            label: Text('Lihat Rincian Lengkap',
-                                style: TextStyle(color: primaryColor)),
-                            style: OutlinedButton.styleFrom(
-                              backgroundColor: Colors.white,
-                              side: BorderSide(
-                                  color: primaryColor.withValues(alpha: 0.3)),
-                              padding: const EdgeInsets.symmetric(vertical: 12),
-                              shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12)),
-                              textStyle: const TextStyle(
-                                  fontSize: 13, fontWeight: FontWeight.w600),
-                            ),
-                          ),
+                        label: Text(
+                          _savedSuccess
+                              ? 'Tersimpan di Riwayat!'
+                              : 'Simpan ke Riwayat',
                         ),
-                      ],
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: _savedSuccess
+                              ? const Color(0xFF059669)
+                              : primaryColor,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          elevation: 0,
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12)),
+                          textStyle: const TextStyle(
+                              fontSize: 13.5, fontWeight: FontWeight.w600),
+                        ),
+                      ),
                     ),
                   ),
                 ],
@@ -1611,28 +1599,6 @@ class _PivotCalculatorState extends State<PivotCalculator> {
             ),
             const SizedBox(height: 12),
           ],
-
-          // Tombol grafik TradingView untuk produk terpilih
-          SizedBox(
-            width: double.infinity,
-            child: OutlinedButton.icon(
-              onPressed: _openChart,
-              icon: Icon(Icons.candlestick_chart_rounded,
-                  size: 18, color: primaryColor),
-              label: Text('Lihat Grafik ${_product.label} di TradingView',
-                  style: TextStyle(color: primaryColor)),
-              style: OutlinedButton.styleFrom(
-                backgroundColor: Colors.white,
-                side: BorderSide(color: primaryColor.withValues(alpha: 0.3)),
-                padding: const EdgeInsets.symmetric(vertical: 13),
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12)),
-                textStyle:
-                    const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
-              ),
-            ),
-          ),
-          const SizedBox(height: 12),
 
           // SECTION 4: KONSEP TRANSAKSI
           _buildKonsepTransaksi(),
@@ -1860,7 +1826,7 @@ class _PivotCalculatorState extends State<PivotCalculator> {
           ),
           const SizedBox(height: 4),
           const Text(
-            'Aturan: PP di atas harga open hari ini = Buy, PP di bawah harga open = Sell. Ini sinyal dari rumus saja, bukan saran investasi.',
+            'Aturan: PP di atas harga open hari ini = Buy, PP di bawah harga open = Sell.',
             style: TextStyle(
                 fontSize: 11.5, color: Color(0xFF64748B), height: 1.4),
           ),
@@ -2094,51 +2060,6 @@ class _PivotCalculatorState extends State<PivotCalculator> {
             ),
           ),
         ),
-      ),
-    );
-  }
-
-  Widget _buildBiasBadge(String bias, Color primaryColor) {
-    bool isBullish = bias == 'bullish';
-    bool isBearish = bias == 'bearish';
-
-    Color bg = isBullish
-        ? const Color(0xFFECFDF5)
-        : (isBearish ? primaryColor.withValues(alpha: 0.1) : const Color(0xFFF8FAFC));
-    Color border = isBullish
-        ? const Color(0xFFA7F3D0)
-        : (isBearish ? primaryColor.withValues(alpha: 0.3) : const Color(0xFFE2E8F0));
-    Color text = isBullish
-        ? const Color(0xFF047857)
-        : (isBearish ? primaryColor : const Color(0xFF334155));
-    IconData icon = isBullish
-        ? Icons.trending_up_rounded
-        : (isBearish ? Icons.trending_down_rounded : Icons.swap_horiz_rounded);
-
-    String label = isBullish
-        ? 'Bullish Bias'
-        : (isBearish ? 'Bearish Bias' : 'Neutral Bias');
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(
-        color: bg,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: border),
-      ),
-      child: Row(
-        children: [
-          Icon(icon, size: 15, color: text),
-          const SizedBox(width: 4),
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 11.5,
-              fontWeight: FontWeight.w600,
-              color: text,
-            ),
-          ),
-        ],
       ),
     );
   }

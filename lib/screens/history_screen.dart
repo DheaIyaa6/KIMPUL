@@ -1,12 +1,16 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:share_plus/share_plus.dart';
+
+import 'package:kimpul/screens/history_storage.dart';
 
 // Model riwayat perhitungan (dipakai file lain, jangan diubah)
 class HistoryItem {
@@ -103,6 +107,7 @@ class HistoryScreen extends StatefulWidget {
 class _HistoryScreenState extends State<HistoryScreen> {
   static const String _url = 'https://www.newsmaker.id/api/historical-data';
   static const Color _green = Color(0xFF059669);
+  static const Color _red = Color(0xFFE11D48);
 
   final DateFormat _uiFmt = DateFormat('dd/MM/yyyy');
 
@@ -119,12 +124,74 @@ class _HistoryScreenState extends State<HistoryScreen> {
   late DateTime _start;
   late DateTime _end;
 
+  // Riwayat perhitungan dari cloud (Firestore, per akun)
+  StreamSubscription<User?>? _authSub;
+  StreamSubscription<List<Map<String, dynamic>>>? _histSub;
+  String? _uid;
+  bool _cloudLoaded = false;
+  List<HistoryItem> _cloud = [];
+
   @override
   void initState() {
     super.initState();
     final now = DateTime.now();
     _end = DateTime(now.year, now.month, now.day);
     _start = _end.subtract(const Duration(days: 7));
+
+    _bindCloud(FirebaseAuth.instance.currentUser);
+    _authSub = FirebaseAuth.instance.authStateChanges().listen((user) {
+      if (!mounted || user?.uid == _uid) return;
+      setState(() => _bindCloud(user));
+    });
+  }
+
+  @override
+  void dispose() {
+    _authSub?.cancel();
+    _histSub?.cancel();
+    super.dispose();
+  }
+
+  // Pasang listener riwayat milik user yang sedang login
+  void _bindCloud(User? user) {
+    _histSub?.cancel();
+    _histSub = null;
+    _uid = user?.uid;
+    _cloudLoaded = false;
+    _cloud = [];
+    if (user == null) return;
+
+    _histSub = HistoryStorage.watch(user.uid).listen(
+      (maps) {
+        if (!mounted) return;
+        setState(() {
+          _cloud = maps.map(_itemFromMap).toList();
+          _cloudLoaded = true;
+        });
+      },
+      onError: (e) => debugPrint('RIWAYAT: listener error: $e'),
+    );
+  }
+
+  double? _num(dynamic v) => v is num ? v.toDouble() : null;
+
+  HistoryItem _itemFromMap(Map<String, dynamic> m) {
+    return HistoryItem(
+      id: (m['id'] ?? '').toString(),
+      type: (m['type'] ?? '').toString(),
+      formattedDate: (m['formattedDate'] ?? '').toString(),
+      formattedTime: (m['formattedTime'] ?? '').toString(),
+      pair: m['pair'] as String?,
+      bias: m['bias'] as String?,
+      pp: _num(m['pp']),
+      r1: _num(m['r1']),
+      s1: _num(m['s1']),
+      weight: _num(m['weight']),
+      purityLabel: m['purityLabel'] as String?,
+      grandTotal: _num(m['grandTotal']),
+      title: m['title'] as String?,
+      description: m['description'] as String?,
+    );
   }
 
   void _selectTab(String id) {
@@ -135,9 +202,14 @@ class _HistoryScreenState extends State<HistoryScreen> {
   }
 
   // ---------- Riwayat perhitungan ----------
-  List<HistoryItem> get _calcItems => widget.historyItems
-      .where((i) => i.type != 'history_closing')
-      .toList();
+
+  // Kalau sudah login dan data cloud sudah datang, pakai cloud.
+  // Kalau belum, pakai daftar dari halaman induk.
+  List<HistoryItem> get _sourceItems =>
+      (_uid != null && _cloudLoaded) ? _cloud : widget.historyItems;
+
+  List<HistoryItem> get _calcItems =>
+      _sourceItems.where((i) => i.type != 'history_closing').toList();
 
   List<HistoryItem> get _filteredCalc {
     final items = _calcItems;
@@ -285,8 +357,10 @@ class _HistoryScreenState extends State<HistoryScreen> {
       final dir = await getTemporaryDirectory();
       final file = File('${dir.path}/$_fileBase.csv');
       await file.writeAsString(sb.toString());
-      await Share.shareXFiles([XFile(file.path)],
-          text: 'Data historis ${_cat.label}');
+      await SharePlus.instance.share(ShareParams(
+        files: [XFile(file.path)],
+        text: 'Data historis ${_cat.label}',
+      ));
     } catch (e) {
       _toast('Gagal membuat CSV.');
     }
@@ -363,8 +437,10 @@ class _HistoryScreenState extends State<HistoryScreen> {
       final dir = await getTemporaryDirectory();
       final file = File('${dir.path}/$_fileBase.pdf');
       await file.writeAsBytes(bytes);
-      await Share.shareXFiles([XFile(file.path)],
-          text: 'Data historis ${_cat.label}');
+      await SharePlus.instance.share(ShareParams(
+        files: [XFile(file.path)],
+        text: 'Data historis ${_cat.label}',
+      ));
     } catch (e) {
       _toast('Gagal membuat PDF.');
     }
@@ -401,7 +477,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                 ? (_loading
                     ? 'Memuat data dari Newsmaker...'
                     : '${_rows.length} baris | Sumber: Newsmaker')
-                : 'Daftar kalkulasi pivot point, emas fisik, dan nest yang tersimpan secara lokal.',
+                : 'Daftar kalkulasi pivot point, emas fisik, dan nest yang tersimpan di akun Anda.',
             style: const TextStyle(fontSize: 13, color: Color(0xFF64748B)),
           ),
           const SizedBox(height: 16),
@@ -833,6 +909,8 @@ class _HistoryScreenState extends State<HistoryScreen> {
         ),
         InkWell(
           onTap: () {
+            // Hapus dari cloud dan dari daftar halaman induk
+            HistoryStorage.delete(item.id);
             widget.onDeleteHistory(item.id);
             _toast('Item perhitungan telah dihapus.');
           },
@@ -846,66 +924,61 @@ class _HistoryScreenState extends State<HistoryScreen> {
     );
   }
 
-  Widget _actionButtons(HistoryItem item, Color c) {
-    return Row(
-      children: [
-        Expanded(
-          child: OutlinedButton.icon(
-            onPressed: () => widget.onOpenDetailModal(item),
-            icon: Icon(Icons.visibility_outlined, size: 16, color: c),
-            label: Text('Rincian', style: TextStyle(color: c)),
-            style: OutlinedButton.styleFrom(
-              backgroundColor: Colors.white,
-              side: BorderSide(color: c.withValues(alpha: 0.3)),
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12)),
-            ),
-          ),
-        ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: ElevatedButton.icon(
-            onPressed: () => widget.onRecalculate(item),
-            icon: const Icon(Icons.refresh_rounded, size: 16),
-            label: const Text('Hitung Ulang'),
-            style: ElevatedButton.styleFrom(
-              foregroundColor: Colors.white,
-              backgroundColor: c,
-              elevation: 0,
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12)),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
   BoxDecoration get _cardDeco => BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: const Color(0xFFE2E8F0)),
       );
 
+  // Kotak putih berisi satu level (PP / R1 / S1) di kartu Pivot
+  Widget _pivotLevelBox(
+      String label, Color labelColor, double? value, Color valueColor) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: Column(
+        children: [
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(label,
+                style: TextStyle(
+                    fontSize: 10.5,
+                    color: labelColor,
+                    fontWeight: FontWeight.w600)),
+          ),
+          const SizedBox(height: 2),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(value?.toStringAsFixed(2) ?? '0.00',
+                style: TextStyle(
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.bold,
+                    color: valueColor)),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildPivotCard(HistoryItem item, Color primaryColor) {
-    final bool isBullish = item.bias == 'bullish';
-    final bool isBearish = item.bias == 'bearish';
+    // Sinyal disimpan di field bias: 'buy' / 'sell' / 'netral'.
+    // Riwayat lama (bullish/bearish/sideway) tidak menampilkan badge.
+    final String signal = (item.bias ?? '').toLowerCase();
+    final bool showSignal =
+        signal == 'buy' || signal == 'sell' || signal == 'netral';
 
-    Color biasBg = const Color(0xFFF8FAFC);
-    Color biasText = const Color(0xFF334155);
-    Color biasBorder = const Color(0xFFE2E8F0);
-    IconData biasIcon = Icons.swap_horiz_rounded;
-
-    if (isBullish) {
-      biasBg = const Color(0xFFECFDF5);
-      biasText = const Color(0xFF047857);
-      biasBorder = const Color(0xFFA7F3D0);
-      biasIcon = Icons.trending_up_rounded;
-    } else if (isBearish) {
-      biasBg = primaryColor.withValues(alpha: 0.1);
-      biasText = primaryColor;
-      biasBorder = primaryColor.withValues(alpha: 0.3);
-      biasIcon = Icons.trending_down_rounded;
+    Color sigColor = const Color(0xFF64748B);
+    IconData sigIcon = Icons.swap_horiz_rounded;
+    if (signal == 'buy') {
+      sigColor = _green;
+      sigIcon = Icons.trending_up_rounded;
+    } else if (signal == 'sell') {
+      sigColor = _red;
+      sigIcon = Icons.trending_down_rounded;
     }
 
     return Container(
@@ -935,31 +1008,32 @@ class _HistoryScreenState extends State<HistoryScreen> {
                           color: Color(0xFF0F172A))),
                 ],
               ),
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  color: biasBg,
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: biasBorder),
+              if (showSignal)
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: sigColor.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: sigColor.withValues(alpha: 0.3)),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(sigIcon, size: 15, color: sigColor),
+                      const SizedBox(width: 4),
+                      Text(signal.toUpperCase(),
+                          style: TextStyle(
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.w600,
+                              color: sigColor)),
+                    ],
+                  ),
                 ),
-                child: Row(
-                  children: [
-                    Icon(biasIcon, size: 15, color: biasText),
-                    const SizedBox(width: 4),
-                    Text((item.bias ?? 'NETRAL').toUpperCase(),
-                        style: TextStyle(
-                            fontSize: 11.5,
-                            fontWeight: FontWeight.w600,
-                            color: biasText)),
-                  ],
-                ),
-              ),
             ],
           ),
           const SizedBox(height: 12),
           Container(
-            padding: const EdgeInsets.all(12),
+            padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
               color: const Color(0xFFF8FAFC),
               borderRadius: BorderRadius.circular(12),
@@ -968,69 +1042,22 @@ class _HistoryScreenState extends State<HistoryScreen> {
             child: Row(
               children: [
                 Expanded(
-                  child: Column(
-                    children: [
-                      const Text('PIVOT (PP)',
-                          style: TextStyle(
-                              fontSize: 10.5,
-                              color: Color(0xFF64748B),
-                              fontWeight: FontWeight.w500)),
-                      const SizedBox(height: 2),
-                      Text(item.pp?.toStringAsFixed(2) ?? '0.00',
-                          style: TextStyle(
-                              fontSize: 13.5,
-                              fontWeight: FontWeight.bold,
-                              color: primaryColor)),
-                    ],
-                  ),
+                  child: _pivotLevelBox('PIVOT (PP)', const Color(0xFF64748B),
+                      item.pp, primaryColor),
                 ),
+                const SizedBox(width: 6),
                 Expanded(
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(vertical: 4),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: const Color(0xFFE2E8F0)),
-                    ),
-                    child: Column(
-                      children: [
-                        Text('RESIST 1 (R1)',
-                            style: TextStyle(
-                                fontSize: 10.5,
-                                color: primaryColor,
-                                fontWeight: FontWeight.w600)),
-                        const SizedBox(height: 2),
-                        Text(item.r1?.toStringAsFixed(2) ?? '0.00',
-                            style: const TextStyle(
-                                fontSize: 13.5,
-                                fontWeight: FontWeight.bold,
-                                color: Color(0xFF0F172A))),
-                      ],
-                    ),
-                  ),
+                  child: _pivotLevelBox('RESIST 1 (R1)', primaryColor, item.r1,
+                      const Color(0xFF0F172A)),
                 ),
+                const SizedBox(width: 6),
                 Expanded(
-                  child: Column(
-                    children: [
-                      const Text('SUPPORT 1 (S1)',
-                          style: TextStyle(
-                              fontSize: 10.5,
-                              color: Color(0xFF047857),
-                              fontWeight: FontWeight.w600)),
-                      const SizedBox(height: 2),
-                      Text(item.s1?.toStringAsFixed(2) ?? '0.00',
-                          style: const TextStyle(
-                              fontSize: 13.5,
-                              fontWeight: FontWeight.bold,
-                              color: Color(0xFF0F172A))),
-                    ],
-                  ),
+                  child: _pivotLevelBox('SUPPORT 1 (S1)',
+                      const Color(0xFF047857), item.s1, const Color(0xFF0F172A)),
                 ),
               ],
             ),
           ),
-          const SizedBox(height: 12),
-          _actionButtons(item, primaryColor),
         ],
       ),
     );
@@ -1111,8 +1138,6 @@ class _HistoryScreenState extends State<HistoryScreen> {
               ],
             ),
           ),
-          const SizedBox(height: 12),
-          _actionButtons(item, primaryColor),
         ],
       ),
     );
@@ -1141,8 +1166,6 @@ class _HistoryScreenState extends State<HistoryScreen> {
               overflow: TextOverflow.ellipsis,
               style: const TextStyle(
                   fontSize: 12.5, color: Color(0xFF64748B), height: 1.4)),
-          const SizedBox(height: 12),
-          _actionButtons(item, c),
         ],
       ),
     );

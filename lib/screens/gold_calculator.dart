@@ -1,5 +1,9 @@
-import 'package:flutter/material.dart';
+import 'dart:convert';
 
+import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+
+import 'package:kimpul/screens/history_storage.dart';
 import 'package:kimpul/screens/result_actions.dart';
 
 // Model Data Kalkulasi Emas Fisik
@@ -76,33 +80,48 @@ class _GoldCalculatorState extends State<GoldCalculator> {
   // TOZ (troy ounce -> gram): ketetapan, tidak bisa diubah (sesuai catatan)
   static const double _toz = 31.1;
 
-  static const Color _accent = Color(0xFFBE123C);
+  // Warna utama KIMPUL (pink)
+  static const Color _accent = Color(0xFFE93A56);
   static const Color _profitColor = Color(0xFF059669);
 
-  // Nilai awal = contoh dari catatan (hasil untung Rp 48.374)
-  static const double _defModal = 100000000;
-  static const double _defKurs = 18000;
-  static const double _defHb = 4132;
-  static const double _defHj = 4134;
+  // Contoh angka awal (bisa diedit pengguna)
+  static const double _exModal = 100000000;
+  static const double _exKurs = 18000; // diganti kurs live kalau berhasil diambil
+  static const double _exHb = 4132;
+  static const double _exHj = 4134;
+
+  // Kurs USD -> IDR (tanpa API key, update harian)
+  static const String _kursUrl = 'https://open.er-api.com/v6/latest/USD';
 
   late final TextEditingController _modalC;
   late final TextEditingController _kursC;
   late final TextEditingController _hbC;
   late final TextEditingController _hjC;
 
-  bool _roundDown = true;
+  // Pembulatan seperti catatan: selalu aktif
+  late final bool _roundDown;
   bool _showFormula = true;
   bool _savedSuccess = false;
+
+  // Status kurs live
+  bool _loadingKurs = false;
+  bool _kursError = false;
+  String _kursInfo = '';
 
   @override
   void initState() {
     super.initState();
     final init = widget.initialValues;
-    _modalC = TextEditingController(text: _plain(init?.modal ?? _defModal));
-    _kursC = TextEditingController(text: _plain(init?.kurs ?? _defKurs));
-    _hbC = TextEditingController(text: _plain(init?.hargaBeliUsd ?? _defHb));
-    _hjC = TextEditingController(text: _plain(init?.hargaJualUsd ?? _defHj));
+    // Kolom diisi contoh angka (bisa diedit). Kalau dibuka dari riwayat,
+    // pakai angka dari riwayat itu.
+    _modalC = TextEditingController(text: _plain(init?.modal ?? _exModal));
+    _kursC = TextEditingController(text: _plain(init?.kurs ?? _exKurs));
+    _hbC = TextEditingController(text: _plain(init?.hargaBeliUsd ?? _exHb));
+    _hjC = TextEditingController(text: _plain(init?.hargaJualUsd ?? _exHj));
     _roundDown = init?.pembulatanKeBawah ?? true;
+
+    // Kurs diambil otomatis kalau bukan dari riwayat
+    if (init == null) _fetchKurs();
   }
 
   @override
@@ -144,14 +163,43 @@ class _GoldCalculatorState extends State<GoldCalculator> {
   String _usd(double v) =>
       v == v.roundToDouble() ? v.toStringAsFixed(0) : v.toStringAsFixed(2);
 
-  void _handleReset() {
+  // ---------- Kurs live USD -> IDR ----------
+
+  Future<void> _fetchKurs() async {
     setState(() {
-      _modalC.text = _plain(_defModal);
-      _kursC.text = _plain(_defKurs);
-      _hbC.text = _plain(_defHb);
-      _hjC.text = _plain(_defHj);
-      _roundDown = true;
+      _loadingKurs = true;
+      _kursError = false;
     });
+
+    try {
+      final res = await http
+          .get(Uri.parse(_kursUrl), headers: {'Accept': 'application/json'})
+          .timeout(const Duration(seconds: 8));
+      if (res.statusCode != 200) {
+        throw Exception('status ${res.statusCode}');
+      }
+
+      final body = jsonDecode(res.body) as Map<String, dynamic>;
+      final rates = body['rates'];
+      final double? idr = rates is Map && rates['IDR'] != null
+          ? double.tryParse(rates['IDR'].toString())
+          : null;
+      if (idr == null || idr <= 0) throw Exception('kurs IDR tidak ada');
+
+      if (!mounted) return;
+      setState(() {
+        _kursC.text = idr.round().toString();
+        _kursInfo = 'Kurs USD ke IDR terbaru • Sumber: exchangerate-api.com';
+        _loadingKurs = false;
+        _kursError = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _loadingKurs = false;
+        _kursError = true;
+      });
+    }
   }
 
   // ---------- Perhitungan (sesuai catatan) ----------
@@ -183,6 +231,8 @@ class _GoldCalculatorState extends State<GoldCalculator> {
     if (_roundDown) {
       gram = ((gram * 100) + 1e-9).floorToDouble() / 100;
     }
+    // Modal terlalu kecil: emas yang didapat 0,00 gram -> belum ada hasil
+    if (gram <= 0) return null;
 
     final selisih = hjGram - hbGram;
     final untung = selisih * gram;
@@ -214,7 +264,42 @@ class _GoldCalculatorState extends State<GoldCalculator> {
     );
   }
 
+  // Pesan kalau semua kolom terisi tapi modalnya terlalu kecil
+  // (emas yang didapat kurang dari 0,01 gram).
+  String? _warning() {
+    final modal = _parseMoney(_modalC.text);
+    final kurs = _parseMoney(_kursC.text);
+    final hb = _parseDecimal(_hbC.text);
+    final hj = _parseDecimal(_hjC.text);
+
+    if (modal == null || kurs == null || hb == null || hj == null) return null;
+    if (modal <= 0 || kurs <= 0 || hb <= 0 || hj <= 0) return null;
+
+    double hbGram = hb * kurs / _toz;
+    if (_roundDown) hbGram = (hbGram + 1e-9).floorToDouble();
+    if (hbGram <= 0) return null;
+
+    double gram = modal / hbGram;
+    if (_roundDown) gram = ((gram * 100) + 1e-9).floorToDouble() / 100;
+
+    if (gram <= 0) {
+      return 'Modal Rp ${_rp(modal)} terlalu kecil. Dengan harga beli Rp ${_rp(hbGram)} per gram, emas yang didapat kurang dari 0,01 gram. Naikkan modal, atau periksa lagi harga beli (HB) dalam USD per ons.';
+    }
+    return null;
+  }
+
   void _handleSave(GoldCalculation calc) async {
+    // Simpan ke cloud (per akun): tetap ada setelah logout & terlihat di semua HP
+    HistoryStorage.save(
+      id: calc.id,
+      type: 'gold',
+      formattedDate: calc.formattedDate,
+      formattedTime: calc.formattedTime,
+      weight: calc.gram,
+      purityLabel: calc.purityLabel,
+      grandTotal: calc.nilaiAkhir,
+    );
+
     widget.onSaveHistory(calc);
     setState(() => _savedSuccess = true);
     await Future.delayed(const Duration(milliseconds: 2200));
@@ -255,19 +340,6 @@ class _GoldCalculatorState extends State<GoldCalculator> {
                   ),
                 ),
               ),
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF1F5F9),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: const Text('Emas Fisik • Kurs',
-                    style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                        color: Color(0xFF475569))),
-              ),
             ],
           ),
           const SizedBox(height: 12),
@@ -304,6 +376,8 @@ class _GoldCalculatorState extends State<GoldCalculator> {
                 _buildField('Modal', _modalC, prefix: 'Rp '),
                 const SizedBox(height: 12),
                 _buildField('Kurs (Rp per 1 USD)', _kursC, prefix: 'Rp '),
+                const SizedBox(height: 6),
+                _buildKursStatus(),
                 const SizedBox(height: 12),
                 _buildField('Harga Beli / HB (USD per ons)', _hbC,
                     suffix: 'USD'),
@@ -335,70 +409,12 @@ class _GoldCalculatorState extends State<GoldCalculator> {
                     ],
                   ),
                 ),
-                const SizedBox(height: 10),
-
-                // Pembulatan
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFF8FAFC),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: const Color(0xFFE2E8F0)),
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text('Pembulatan seperti catatan',
-                                style: TextStyle(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w600,
-                                    color: _accent)),
-                            Text(
-                              'Rp per gram dibulatkan ke bawah, gram 2 desimal.',
-                              style: TextStyle(
-                                  fontSize: 11.5, color: Color(0xFF64748B)),
-                            ),
-                          ],
-                        ),
-                      ),
-                      Switch(
-                        value: _roundDown,
-                        activeThumbColor: _accent,
-                        onChanged: (v) => setState(() => _roundDown = v),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 10),
-                const Text(
-                  'Nilai awal di atas adalah contoh dari catatan (untung Rp 48.374).',
-                  style: TextStyle(fontSize: 11, color: Color(0xFF94A3B8)),
-                ),
                 const SizedBox(height: 12),
 
                 // Actions Row
                 Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  mainAxisAlignment: MainAxisAlignment.end,
                   children: [
-                    InkWell(
-                      onTap: _handleReset,
-                      child: const Row(
-                        children: [
-                          Icon(Icons.restart_alt_rounded,
-                              size: 16, color: Color(0xFF64748B)),
-                          SizedBox(width: 4),
-                          Text('Reset Form',
-                              style: TextStyle(
-                                  fontSize: 12.5,
-                                  fontWeight: FontWeight.w500,
-                                  color: Color(0xFF64748B))),
-                        ],
-                      ),
-                    ),
                     InkWell(
                       onTap: () => setState(() => _showFormula = !_showFormula),
                       child: Row(
@@ -462,6 +478,11 @@ class _GoldCalculatorState extends State<GoldCalculator> {
           style: const TextStyle(
               fontSize: 15, fontWeight: FontWeight.bold, color: _accent),
           decoration: InputDecoration(
+            hintText: '0',
+            hintStyle: const TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w400,
+                color: Color(0xFFCBD5E1)),
             prefixText: prefix,
             prefixStyle: const TextStyle(
                 fontSize: 13,
@@ -483,6 +504,53 @@ class _GoldCalculatorState extends State<GoldCalculator> {
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
               borderSide: const BorderSide(color: _accent),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // Status kurs live + tombol Perbarui
+  Widget _buildKursStatus() {
+    String text;
+    Color color = const Color(0xFF94A3B8);
+    if (_loadingKurs) {
+      text = 'Mengambil kurs USD ke IDR...';
+    } else if (_kursError) {
+      text = 'Gagal mengambil kurs. Isi manual atau coba lagi.';
+      color = const Color(0xFF9A3412);
+    } else if (_kursInfo.isNotEmpty) {
+      text = _kursInfo;
+    } else {
+      text = 'Kurs diambil otomatis, bisa diubah manual.';
+    }
+
+    return Row(
+      children: [
+        Expanded(
+          child: Text(text, style: TextStyle(fontSize: 11, color: color)),
+        ),
+        InkWell(
+          onTap: _loadingKurs ? null : _fetchKurs,
+          borderRadius: BorderRadius.circular(8),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+            child: Row(
+              children: [
+                Icon(Icons.refresh_rounded,
+                    size: 15,
+                    color: _loadingKurs ? const Color(0xFF94A3B8) : _accent),
+                const SizedBox(width: 3),
+                Text(
+                  'Perbarui',
+                  style: TextStyle(
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w600,
+                    color: _loadingKurs ? const Color(0xFF94A3B8) : _accent,
+                  ),
+                ),
+              ],
             ),
           ),
         ),
@@ -608,24 +676,37 @@ class _GoldCalculatorState extends State<GoldCalculator> {
 
   Widget _buildResult(GoldCalculation? c) {
     if (c == null) {
+      final String? warning = _warning();
       return Container(
         width: double.infinity,
         padding: const EdgeInsets.all(18),
         decoration: _cardDecoration(),
-        child: const Column(
+        child: Column(
           children: [
-            Icon(Icons.calculate_outlined, size: 32, color: Color(0xFF94A3B8)),
-            SizedBox(height: 8),
-            Text('Belum ada hasil',
-                style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFF0F172A))),
-            SizedBox(height: 4),
+            Icon(
+              warning == null
+                  ? Icons.calculate_outlined
+                  : Icons.info_outline_rounded,
+              size: 32,
+              color: warning == null
+                  ? const Color(0xFF94A3B8)
+                  : const Color(0xFF9A3412),
+            ),
+            const SizedBox(height: 8),
             Text(
-              'Isi Modal, Kurs, HB, dan HJ dengan angka lebih dari 0.',
+              warning == null ? 'Belum ada hasil' : 'Hasil belum bisa dihitung',
+              style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF0F172A)),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              warning ??
+                  'Isi Modal, Kurs, HB, dan HJ dengan angka lebih dari 0.',
               textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 12.5, color: Color(0xFF64748B)),
+              style: const TextStyle(
+                  fontSize: 12.5, color: Color(0xFF64748B), height: 1.4),
             ),
           ],
         ),
@@ -720,25 +801,6 @@ class _GoldCalculatorState extends State<GoldCalculator> {
                     borderRadius: BorderRadius.circular(12)),
                 textStyle: const TextStyle(
                     fontSize: 13.5, fontWeight: FontWeight.w600),
-              ),
-            ),
-          ),
-          const SizedBox(height: 8),
-          SizedBox(
-            width: double.infinity,
-            child: OutlinedButton.icon(
-              onPressed: () => widget.onOpenDetailModal(c),
-              icon: const Icon(Icons.receipt_long_rounded, size: 18),
-              label: const Text('Lihat Rincian Lengkap'),
-              style: OutlinedButton.styleFrom(
-                backgroundColor: const Color(0xFFF8FAFC),
-                foregroundColor: _accent,
-                side: const BorderSide(color: Color(0xFFE2E8F0)),
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12)),
-                textStyle: const TextStyle(
-                    fontSize: 13, fontWeight: FontWeight.w600),
               ),
             ),
           ),

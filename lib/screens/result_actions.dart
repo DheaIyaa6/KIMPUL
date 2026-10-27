@@ -5,9 +5,8 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import 'package:share_plus/share_plus.dart';
-import 'package:url_launcher/url_launcher.dart';
 
-/// Tombol "WhatsApp", "Bagikan", dan "Cetak" untuk hasil kalkulator.
+/// Tombol "Bagikan" dan "Cetak" untuk hasil kalkulator.
 ///
 /// [rows] berisi pasangan label -> nilai. Kalau nilainya kosong (''),
 /// baris itu dianggap judul bagian (misalnya "Level").
@@ -29,15 +28,6 @@ class ResultActions extends StatelessWidget {
 
     return Row(
       children: [
-        Expanded(
-          child: _actionButton(
-            icon: Icons.chat_rounded,
-            label: 'WhatsApp',
-            fg: const Color(0xFF16A34A),
-            onTap: () => shareToWhatsApp(context, text),
-          ),
-        ),
-        const SizedBox(width: 8),
         Expanded(
           child: _actionButton(
             icon: Icons.share_rounded,
@@ -100,24 +90,15 @@ void _snack(BuildContext context, String msg) {
   ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
 }
 
-// ---------- WhatsApp langsung ----------
-
-Future<void> shareToWhatsApp(BuildContext context, String text) async {
-  try {
-    final uri = Uri.parse('https://wa.me/?text=${Uri.encodeComponent(text)}');
-    final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
-    if (!ok) _snack(context, 'Tidak bisa membuka WhatsApp.');
-  } catch (_) {
-    _snack(context, 'Tidak bisa membuka WhatsApp.');
-  }
-}
-
 // ---------- Menu bagikan bawaan HP (Instagram, Telegram, dll) ----------
 
-Future<void> shareToApps(BuildContext context, String title, String text) async {
+Future<void> shareToApps(
+    BuildContext context, String title, String text) async {
   try {
     await SharePlus.instance.share(ShareParams(text: text, subject: title));
   } catch (_) {
+    // Context dicek dulu karena sudah melewati await
+    if (!context.mounted) return;
     _snack(context, 'Gagal membuka menu bagikan.');
   }
 }
@@ -171,7 +152,8 @@ Future<Uint8List> _buildPdf(
                 child: pw.Row(
                   mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
                   children: [
-                    pw.Text(_ascii(r.key), style: const pw.TextStyle(fontSize: 12)),
+                    pw.Text(_ascii(r.key),
+                        style: const pw.TextStyle(fontSize: 12)),
                     pw.Text(_ascii(r.value),
                         style: pw.TextStyle(
                             fontSize: 12, fontWeight: pw.FontWeight.bold)),
@@ -197,12 +179,15 @@ Future<void> printResult(BuildContext context, String title,
     List<MapEntry<String, String>> rows) async {
   try {
     final bytes = await _buildPdf(title, rows);
-    final name = 'KIMPUL-${title.replaceAll(RegExp(r'[^A-Za-z0-9]+'), '-')}.pdf';
+    final name =
+        'KIMPUL-${title.replaceAll(RegExp(r'[^A-Za-z0-9]+'), '-')}.pdf';
     await Printing.layoutPdf(
       onLayout: (PdfPageFormat format) async => bytes,
       name: name,
     );
   } catch (_) {
+    // Context dicek dulu karena sudah melewati await
+    if (!context.mounted) return;
     _snack(context, 'Gagal menyiapkan dokumen cetak.');
   }
 }

@@ -11,6 +11,7 @@ import 'package:kimpul/screens/login_screen.dart';
 import 'package:kimpul/screens/market_overview_screen.dart';
 import 'package:kimpul/screens/modals_screen.dart';
 import 'package:kimpul/screens/news_screen.dart';
+import 'package:kimpul/screens/nest_calculator.dart';
 import 'package:kimpul/screens/pivot_calculator.dart';
 import 'package:kimpul/screens/profile_screen.dart';
 
@@ -261,6 +262,18 @@ class _HomeScreenState extends State<HomeScreen> {
         grandTotal: e.nilaiAkhir,
       );
     }
+    if (e is NestCalculation) {
+      return HistoryItem(
+        id: e.id,
+        type: 'nest',
+        formattedDate: e.formattedDate,
+        formattedTime: e.formattedTime,
+        pair: e.pair,
+        bias: e.signalKey,
+        title: 'Nest ${e.pair} • ${e.signal}',
+        description: e.summary,
+      );
+    }
     return null;
   }
 
@@ -333,6 +346,14 @@ class _HomeScreenState extends State<HomeScreen> {
         ['Emas', '${_fmtNum(last.gram)} g'],
         [rugi ? 'Rugi' : 'Untung', 'Rp ${_fmtRp(last.untung.abs())}'],
         ['Nilai Akhir', 'Rp ${_fmtRp(last.nilaiAkhir)}'],
+      ];
+    } else if (last is NestCalculation) {
+      title = 'Nest ${last.pair}';
+      dateText = '${last.formattedDate}, ${last.formattedTime}';
+      cols = [
+        ['Open', _fmtNum(last.open)],
+        ['Sinyal', last.signal],
+        ['Close', _fmtNum(last.close)],
       ];
     }
 
@@ -1098,6 +1119,22 @@ class _HomeScreenState extends State<HomeScreen> {
           );
         },
         onOpenDetailModal: (calc) => _showCalcDetail(calc),
+      );
+    } else if (_selectedCalcView == CalcView.nest) {
+      return NestCalculator(
+        onBack: () {
+          setState(() {
+            _selectedCalcView = null;
+          });
+        },
+        onSaveHistory: (calc) {
+          setState(() {
+            _historyItems.add(calc);
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Perhitungan Nest disimpan!')),
+          );
+        },
       );
     } else {
       return CalcHubScreen(
