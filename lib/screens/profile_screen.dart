@@ -3,6 +3,7 @@ import 'dart:io';
 import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -35,12 +36,35 @@ class ProfileStorage {
       await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
         'photoBase64': b64,
         'updatedAt': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
+      }, SetOptions(merge: true)).timeout(const Duration(seconds: 20));
 
       return 'b64:$b64';
     } catch (e) {
       debugPrint('Gagal simpan foto ke Firestore: $e');
       return null;
+    }
+  }
+
+  // Hapus foto dari Firestore (dan salinan lokalnya). true kalau berhasil.
+  static Future<bool> deletePhotoFromCloud() async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return false;
+
+      await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
+        'photoBase64': FieldValue.delete(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true)).timeout(const Duration(seconds: 20));
+
+      final email = user.email ?? '';
+      if (email.isNotEmpty) {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.remove(_getAvatarKey(email));
+      }
+      return true;
+    } catch (e) {
+      debugPrint('Gagal hapus foto dari Firestore: $e');
+      return false;
     }
   }
 
@@ -214,6 +238,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
   StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _cloudSub;
   bool _gotCloudSnapshot = false;
 
+  // True saat foto sedang diunggah / dihapus
+  bool _savingPhoto = false;
+
   // Cache hasil decode base64 supaya tidak decode ulang tiap build()
   String? _cachedB64Key;
   ImageProvider? _cachedB64Provider;
@@ -231,6 +258,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
     _authSub?.cancel();
     _cloudSub?.cancel();
     super.dispose();
+  }
+
+  // Salinan user dengan foto baru (bagian lain tetap sama)
+  UserProfile _withAvatar(String avatarUrl) {
+    return UserProfile(
+      name: _currentUser.name,
+      email: _currentUser.email,
+      phone: _currentUser.phone,
+      avatarUrl: avatarUrl,
+      clientCode: _currentUser.clientCode,
+      accountNumber: _currentUser.accountNumber,
+      branch: _currentUser.branch,
+    );
   }
 
   // Dengarkan perubahan profil di Firestore secara realtime.
@@ -259,6 +299,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
           _gotCloudSnapshot = true;
 
           final cloudName = data['name'] as String?;
+          final hasCloudPhoto = b64 != null && b64.isNotEmpty;
+          final currentAvatar = _currentUser.avatarUrl;
+
+          // Foto di cloud dihapus -> kosongkan juga di layar ini.
+          // Path lokal (bukan b64) dibiarkan sebagai cadangan.
+          final newAvatar = hasCloudPhoto
+              ? 'b64:$b64'
+              : (currentAvatar.startsWith('b64:') ? '' : currentAvatar);
+
           setState(() {
             _currentUser = UserProfile(
               name: (cloudName != null && cloudName.trim().isNotEmpty)
@@ -266,9 +315,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   : _currentUser.name,
               email: _currentUser.email,
               phone: _currentUser.phone,
-              avatarUrl: (b64 != null && b64.isNotEmpty)
-                  ? 'b64:$b64'
-                  : _currentUser.avatarUrl,
+              avatarUrl: newAvatar,
               clientCode: _currentUser.clientCode,
               accountNumber: _currentUser.accountNumber,
               branch: _currentUser.branch,
@@ -306,6 +353,107 @@ class _ProfileScreenState extends State<ProfileScreen> {
         );
       });
     }
+  }
+
+  // ---------- Tambah / ganti / hapus foto profil ----------
+
+  void _showPhotoSheet() {
+    final hasPhoto = _getAvatarProvider(_currentUser.avatarUrl) != null;
+
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (sheetContext) {
+        return SafeArea(
+          child: Wrap(
+            children: [
+              ListTile(
+                leading: const Icon(Icons.photo_library_rounded,
+                    color: Color(0xFF0F172A)),
+                title: Text(
+                    hasPhoto ? 'Ganti dari galeri' : 'Pilih dari galeri'),
+                onTap: () {
+                  Navigator.of(sheetContext).pop();
+                  _pickAndUploadPhoto(ImageSource.gallery);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.photo_camera_rounded,
+                    color: Color(0xFF0F172A)),
+                title: const Text('Ambil dengan kamera'),
+                onTap: () {
+                  Navigator.of(sheetContext).pop();
+                  _pickAndUploadPhoto(ImageSource.camera);
+                },
+              ),
+              if (hasPhoto)
+                ListTile(
+                  leading: const Icon(Icons.delete_outline_rounded,
+                      color: Color(0xFFBE123C)),
+                  title: const Text(
+                    'Hapus foto',
+                    style: TextStyle(color: Color(0xFFBE123C)),
+                  ),
+                  onTap: () {
+                    Navigator.of(sheetContext).pop();
+                    _removePhoto();
+                  },
+                ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _pickAndUploadPhoto(ImageSource source) async {
+    if (_savingPhoto) return;
+    try {
+      // Dikecilkan dulu supaya muat di batas rules Firestore (< 500 KB)
+      final picked = await ImagePicker().pickImage(
+        source: source,
+        maxWidth: 512,
+        maxHeight: 512,
+        imageQuality: 70,
+      );
+      if (picked == null) return;
+
+      if (mounted) setState(() => _savingPhoto = true);
+
+      final result = await ProfileStorage.savePhotoToCloud(File(picked.path));
+      if (!mounted) return;
+
+      if (result == null) {
+        widget.onShowToast(
+            'Gagal menyimpan foto. Cek koneksi atau coba foto lain.');
+      } else {
+        setState(() => _currentUser = _withAvatar(result));
+        widget.onShowToast('Foto profil diperbarui');
+      }
+    } catch (e) {
+      debugPrint('PROFIL pilih foto gagal: $e');
+      if (mounted) widget.onShowToast('Gagal memilih foto: $e');
+    } finally {
+      if (mounted) setState(() => _savingPhoto = false);
+    }
+  }
+
+  Future<void> _removePhoto() async {
+    if (_savingPhoto) return;
+    setState(() => _savingPhoto = true);
+
+    final ok = await ProfileStorage.deletePhotoFromCloud();
+    if (!mounted) return;
+
+    setState(() {
+      _savingPhoto = false;
+      if (ok) _currentUser = _withAvatar('');
+    });
+    widget.onShowToast(
+        ok ? 'Foto profil dihapus' : 'Gagal menghapus foto. Coba lagi.');
   }
 
   // Navigasi ke Halaman Edit Profil
@@ -591,29 +739,47 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
             child: Column(
               children: [
-                Stack(
-                  children: [
-                    CircleAvatar(
-                      radius: 40,
-                      backgroundColor: const Color(0xFFE2E8F0),
-                      backgroundImage: avatarImageProvider,
-                      onBackgroundImageError: avatarImageProvider != null
-                          ? (e, s) => debugPrint('PROFIL gambar gagal: $e')
-                          : null,
-                      child: avatarImageProvider == null
-                          ? const Icon(
-                              Icons.person_rounded,
-                              size: 52,
-                              color: Color(0xFF94A3B8),
-                            )
-                          : null,
-                    ),
-                    Positioned(
-                      bottom: 0,
-                      right: 0,
-                      child: InkWell(
-                        onTap: _navigateToEditProfile,
-                        borderRadius: BorderRadius.circular(14),
+                // Ketuk foto atau ikon kamera -> tambah / ganti / hapus foto
+                GestureDetector(
+                  onTap: _savingPhoto ? null : _showPhotoSheet,
+                  child: Stack(
+                    children: [
+                      CircleAvatar(
+                        radius: 40,
+                        backgroundColor: const Color(0xFFE2E8F0),
+                        backgroundImage: avatarImageProvider,
+                        onBackgroundImageError: avatarImageProvider != null
+                            ? (e, s) => debugPrint('PROFIL gambar gagal: $e')
+                            : null,
+                        child: avatarImageProvider == null
+                            ? const Icon(
+                                Icons.person_rounded,
+                                size: 52,
+                                color: Color(0xFF94A3B8),
+                              )
+                            : null,
+                      ),
+                      if (_savingPhoto)
+                        Positioned.fill(
+                          child: ClipOval(
+                            child: Container(
+                              color: Colors.black38,
+                              child: const Center(
+                                child: SizedBox(
+                                  width: 24,
+                                  height: 24,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2.5,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      Positioned(
+                        bottom: 0,
+                        right: 0,
                         child: Container(
                           width: 28,
                           height: 28,
@@ -628,8 +794,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           ),
                         ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
                 const SizedBox(height: 12),
                 Row(
