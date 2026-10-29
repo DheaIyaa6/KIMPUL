@@ -333,37 +333,84 @@ class _HomeScreenState extends State<HomeScreen> {
       border: Border.all(color: const Color(0xFFE2E8F0)),
     );
 
-    final dynamic last = _historyItems.isNotEmpty ? _historyItems.last : null;
-
+    // Cari perhitungan terbaru yang bisa ditampilkan.
+    // Isi _historyItems bisa berupa objek kalkulasi (PivotCalculation, dll)
+    // ATAU HistoryItem, jadi dua-duanya ditangani.
     String title = '';
     String dateText = '';
     List<List<String>> cols = [];
 
-    if (last is PivotCalculation) {
-      title = 'Pivot Point ${last.pair}';
-      dateText = '${last.formattedDate}, ${last.formattedTime}';
-      cols = [
-        ['Support 1 (S1)', _fmtNum(last.s1)],
-        ['Pivot (PP)', _fmtNum(last.pp)],
-        ['Resistance 1 (R1)', _fmtNum(last.r1)],
-      ];
-    } else if (last is GoldCalculation) {
-      final bool rugi = last.untung < 0;
-      title = 'Emas Fisik';
-      dateText = '${last.formattedDate}, ${last.formattedTime}';
-      cols = [
-        ['Emas', '${_fmtNum(last.gram)} g'],
-        [rugi ? 'Rugi' : 'Untung', 'Rp ${_fmtRp(last.untung.abs())}'],
-        ['Nilai Akhir', 'Rp ${_fmtRp(last.nilaiAkhir)}'],
-      ];
-    } else if (last is NestCalculation) {
-      title = 'Nest ${last.pair}';
-      dateText = '${last.formattedDate}, ${last.formattedTime}';
-      cols = [
-        ['Open', _fmtNum(last.open)],
-        ['Sinyal', last.signal],
-        ['Close', _fmtNum(last.close)],
-      ];
+    String dash(double? v) => v == null ? '-' : _fmtNum(v);
+
+    for (final dynamic e in _historyItems.reversed) {
+      if (e is PivotCalculation) {
+        title = 'Pivot Point ${e.pair}';
+        dateText = '${e.formattedDate}, ${e.formattedTime}';
+        cols = [
+          ['Support 1 (S1)', _fmtNum(e.s1)],
+          ['Pivot (PP)', _fmtNum(e.pp)],
+          ['Resistance 1 (R1)', _fmtNum(e.r1)],
+        ];
+        break;
+      } else if (e is GoldCalculation) {
+        final bool rugi = e.untung < 0;
+        title = 'Emas Fisik';
+        dateText = '${e.formattedDate}, ${e.formattedTime}';
+        cols = [
+          ['Emas', '${_fmtNum(e.gram)} g'],
+          [rugi ? 'Rugi' : 'Untung', 'Rp ${_fmtRp(e.untung.abs())}'],
+          ['Nilai Akhir', 'Rp ${_fmtRp(e.nilaiAkhir)}'],
+        ];
+        break;
+      } else if (e is NestCalculation) {
+        title = 'Nest ${e.pair}';
+        dateText = '${e.formattedDate}, ${e.formattedTime}';
+        cols = [
+          ['Open', _fmtNum(e.open)],
+          ['Sinyal', e.signal],
+          ['Close', _fmtNum(e.close)],
+        ];
+        break;
+      } else if (e is HistoryItem) {
+        if (e.type == 'pivot') {
+          title = 'Pivot Point ${e.pair ?? ''}'.trim();
+          dateText = '${e.formattedDate}, ${e.formattedTime}';
+          cols = [
+            ['Support 1 (S1)', dash(e.s1)],
+            ['Pivot (PP)', dash(e.pp)],
+            ['Resistance 1 (R1)', dash(e.r1)],
+          ];
+          break;
+        } else if (e.type == 'gold') {
+          final pl = (e.purityLabel ?? '').trim();
+          String label = 'Karat';
+          String value = pl.isEmpty ? '-' : pl;
+          if (pl.startsWith('Untung')) {
+            label = 'Untung';
+            value = pl.substring(6).trim();
+          } else if (pl.startsWith('Rugi')) {
+            label = 'Rugi';
+            value = pl.substring(4).trim();
+          }
+          title = 'Emas Fisik';
+          dateText = '${e.formattedDate}, ${e.formattedTime}';
+          cols = [
+            ['Emas', '${_fmtNum(e.weight ?? 0)} g'],
+            [label, value],
+            ['Nilai Akhir', 'Rp ${_fmtRp(e.grandTotal ?? 0)}'],
+          ];
+          break;
+        } else if (e.type == 'nest') {
+          title = (e.title ?? 'Nest ${e.pair ?? ''}').trim();
+          dateText = '${e.formattedDate}, ${e.formattedTime}';
+          cols = [
+            ['Pair', e.pair ?? '-'],
+            ['Sinyal', (e.bias ?? '-').toUpperCase()],
+            ['Waktu', e.formattedTime],
+          ];
+          break;
+        }
+      }
     }
 
     if (cols.isEmpty) {
@@ -917,8 +964,9 @@ class _HomeScreenState extends State<HomeScreen> {
             ],
           ),
           const SizedBox(height: 12),
+          // Tinggi dipangkas karena teks deskripsi sudah dihapus
           SizedBox(
-            height: 176,
+            height: 128,
             child: ListView(
               scrollDirection: Axis.horizontal,
               clipBehavior: Clip.none,
@@ -927,7 +975,6 @@ class _HomeScreenState extends State<HomeScreen> {
                   width: 180,
                   child: _buildQuickCalcCard(
                     title: 'Pivot Point',
-                    subtitle: 'Level Support &\nResistance intraday...',
                     btnText: 'Buka Kalkulator',
                     icon: Icons.calculate_outlined,
                     onTap: () {
@@ -944,7 +991,6 @@ class _HomeScreenState extends State<HomeScreen> {
                   width: 180,
                   child: _buildQuickCalcCard(
                     title: 'Emas Fisik',
-                    subtitle: 'Estimasi gramatur,\nkarat, cetak & PPh 22.',
                     btnText: 'Simulasi Fisik',
                     icon: Icons.account_balance_wallet_outlined,
                     onTap: () {
@@ -961,7 +1007,6 @@ class _HomeScreenState extends State<HomeScreen> {
                   width: 180,
                   child: _buildQuickCalcCard(
                     title: 'Nest',
-                    subtitle: 'Follow the trend dari\nharga Open & Close.',
                     btnText: 'Buka Kalkulator',
                     icon: Icons.trending_up_rounded,
                     onTap: () {
@@ -1019,9 +1064,9 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  // Kartu Kalkulasi Cepat: ikon, judul, tombol (tanpa teks deskripsi)
   Widget _buildQuickCalcCard({
     required String title,
-    required String subtitle,
     required String btnText,
     required IconData icon,
     required VoidCallback onTap,
@@ -1039,6 +1084,7 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Container(
               padding: const EdgeInsets.all(8),
@@ -1049,7 +1095,6 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               child: Icon(icon, color: Colors.white, size: 20),
             ),
-            const SizedBox(height: 12),
             Text(
               title,
               style: const TextStyle(
@@ -1058,16 +1103,6 @@ class _HomeScreenState extends State<HomeScreen> {
                 color: Color(0xFF0F172A),
               ),
             ),
-            const SizedBox(height: 4),
-            Text(
-              subtitle,
-              style: const TextStyle(
-                fontSize: 11,
-                color: Color(0xFF64748B),
-                height: 1.3,
-              ),
-            ),
-            const SizedBox(height: 14),
             Row(
               children: [
                 Text(
