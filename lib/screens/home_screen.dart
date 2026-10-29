@@ -2,14 +2,12 @@ import 'dart:async';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 
 import 'package:kimpul/services/api_service.dart';
 import 'package:kimpul/screens/calculatorhub_screen.dart';
 import 'package:kimpul/screens/gold_calculator.dart';
 import 'package:kimpul/screens/header_screen.dart';
 import 'package:kimpul/screens/history_screen.dart';
-import 'package:kimpul/screens/history_storage.dart';
 import 'package:kimpul/screens/login_screen.dart';
 import 'package:kimpul/screens/market_overview_screen.dart';
 import 'package:kimpul/screens/modals_screen.dart';
@@ -51,14 +49,12 @@ class _HomeScreenState extends State<HomeScreen> {
   // State navigasi internal di tab Kalkulator
   CalcView? _selectedCalcView;
 
+  // Data awal saat "Hitung Ulang" dari Riwayat
+  PivotCalculation? _pivotInit;
+  GoldCalculation? _goldInit;
+
   // List Riwayat Perhitungan Local State
   final List<dynamic> _historyItems = [];
-
-  // Riwayat dari cloud (Firestore, per akun)
-  StreamSubscription<User?>? _authSub;
-  StreamSubscription<List<Map<String, dynamic>>>? _histSub;
-  String? _histUid;
-  List<Map<String, dynamic>> _cloudHistory = [];
 
   // State Berita Live
   List<NewsItem> _liveNewsItems = [];
@@ -82,23 +78,6 @@ class _HomeScreenState extends State<HomeScreen> {
   // User Profile
   late UserProfile _userProfile;
 
-  // Pasang listener riwayat milik user yang sedang login
-  void _bindCloudHistory(User? user) {
-    _histSub?.cancel();
-    _histSub = null;
-    _histUid = user?.uid;
-    _cloudHistory = [];
-    if (user == null) return;
-
-    _histSub = HistoryStorage.watch(user.uid).listen(
-      (maps) {
-        if (!mounted) return;
-        setState(() => _cloudHistory = maps);
-      },
-      onError: (e) => debugPrint('HOME: riwayat cloud error: $e'),
-    );
-  }
-
   // FUNGSI FETCH LIVE NEWS VIA API SERVICE
   Future<void> _fetchLiveNews() async {
     try {
@@ -106,6 +85,7 @@ class _HomeScreenState extends State<HomeScreen> {
       if (!mounted) return;
 
       setState(() {
+        // Kalau refresh gagal (kosong), jangan timpa berita lama
         if (fetchedItems.isNotEmpty) {
           _liveNewsItems = fetchedItems;
         }
@@ -147,7 +127,7 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
-  // MEMBUKA MODAL DETAIL BERITA SAAT BERITA DIKLIK
+  // 🌟 MEMBUKA MODAL DETAIL BERITA SAAT BERITA DIKLIK
   void _openNewsDetail(NewsItem news) {
     NewsDetailModal.show(context, news);
   }
@@ -206,13 +186,6 @@ class _HomeScreenState extends State<HomeScreen> {
 
     _newsPageController = PageController(initialPage: 0);
 
-    // Riwayat terakhir dari cloud
-    _bindCloudHistory(FirebaseAuth.instance.currentUser);
-    _authSub = FirebaseAuth.instance.authStateChanges().listen((user) {
-      if (!mounted || user?.uid == _histUid) return;
-      setState(() => _bindCloudHistory(user));
-    });
-
     // Fetch Berita Live saat Pertama Dimuat
     _fetchLiveNews();
 
@@ -242,8 +215,6 @@ class _HomeScreenState extends State<HomeScreen> {
     _timer.cancel();
     _newsTimer?.cancel();
     _newsRefreshTimer?.cancel();
-    _authSub?.cancel();
-    _histSub?.cancel();
     _newsPageController.dispose();
     super.dispose();
   }
@@ -252,10 +223,14 @@ class _HomeScreenState extends State<HomeScreen> {
     setState(() {
       _selectedIndex = index;
       _selectedCalcView = null;
+      _pivotInit = null;
+      _goldInit = null;
     });
   }
 
-  // ---------- Format Angka ----------
+  // ---------- Riwayat perhitungan ----------
+
+  // Format Indonesia: 24.526 / 4.144,68
   String _fmtNum(double v, {int decimals = 2}) {
     final negative = v < 0;
     final parts = v.abs().toStringAsFixed(decimals).split('.');
@@ -269,10 +244,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   String _fmtRp(double v) => _fmtNum(v, decimals: 0);
 
-  String _cloudNum(dynamic v, {int decimals = 2}) =>
-      v is num ? _fmtNum(v.toDouble(), decimals: decimals) : '-';
-
-  // Ubah hasil kalkulator lokal jadi item Riwayat
+  // Ubah hasil kalkulator jadi item yang dikenali halaman Riwayat
   HistoryItem? _historyFromCalc(dynamic e) {
     if (e is PivotCalculation) {
       return HistoryItem(
@@ -282,37 +254,20 @@ class _HomeScreenState extends State<HomeScreen> {
         formattedTime: e.formattedTime,
         pair: e.pair,
         bias: e.bias,
-        high: e.high,
-        low: e.low,
-        close: e.close,
         pp: e.pp,
         r1: e.r1,
-        r2: e.r2,
-        r3: e.r3,
-        r4: e.r4,
         s1: e.s1,
-        s2: e.s2,
-        s3: e.s3,
-        s4: e.s4,
-        diff: e.diff,
       );
     }
     if (e is GoldCalculation) {
+      final bool rugi = e.untung < 0;
       return HistoryItem(
         id: e.id,
         type: 'gold',
         formattedDate: e.formattedDate,
         formattedTime: e.formattedTime,
-        modal: e.modal,
-        kurs: e.kurs,
-        hargaBeliUsd: e.hargaBeliUsd,
-        hargaJualUsd: e.hargaJualUsd,
-        hbPerGram: e.hbPerGram,
-        hjPerGram: e.hjPerGram,
-        selisihPerGram: e.selisihPerGram,
         weight: e.gram,
-        untung: e.untung,
-        purityLabel: e.purityLabel,
+        purityLabel: '${rugi ? "Rugi" : "Untung"} Rp ${_fmtRp(e.untung.abs())}',
         grandTotal: e.nilaiAkhir,
       );
     }
@@ -324,18 +279,14 @@ class _HomeScreenState extends State<HomeScreen> {
         formattedTime: e.formattedTime,
         pair: e.pair,
         bias: e.signalKey,
-        open: e.open,
-        close: e.close,
-        diff: e.diff,
-        diffPercent: e.diffPercent,
-        signal: e.signal,
-        title: '${e.pair} • ${e.signal}',
+        title: 'Nest ${e.pair} • ${e.signal}',
         description: e.summary,
       );
     }
     return null;
   }
 
+  // Terbaru di atas
   List<HistoryItem> _buildCalcHistoryItems() {
     final items = <HistoryItem>[];
     for (final e in _historyItems.reversed) {
@@ -345,26 +296,36 @@ class _HomeScreenState extends State<HomeScreen> {
     return items;
   }
 
+  void _showCalcDetail(dynamic calc) {
+    final item = _historyFromCalc(calc);
+    if (item != null) CalculationDetailModal.show(context, item);
+  }
+
+  // "Hitung Ulang" dari Riwayat: buka kalkulator dengan angka lama
   void _recalculateFromHistory(HistoryItem item) {
-    if (item.type == 'pivot') {
-      setState(() {
-        _selectedIndex = 2;
-        _selectedCalcView = CalcView.pivot;
-      });
-    } else if (item.type == 'gold') {
-      setState(() {
-        _selectedIndex = 2;
-        _selectedCalcView = CalcView.gold;
-      });
-    } else if (item.type == 'nest') {
-      setState(() {
-        _selectedIndex = 2;
-        _selectedCalcView = CalcView.nest;
-      });
+    for (final e in _historyItems) {
+      if (e is PivotCalculation && e.id == item.id) {
+        setState(() {
+          _pivotInit = e;
+          _goldInit = null;
+          _selectedIndex = 2;
+          _selectedCalcView = CalcView.pivot;
+        });
+        return;
+      }
+      if (e is GoldCalculation && e.id == item.id) {
+        setState(() {
+          _goldInit = e;
+          _pivotInit = null;
+          _selectedIndex = 2;
+          _selectedCalcView = CalcView.gold;
+        });
+        return;
+      }
     }
   }
 
-  // Kartu "Perhitungan Terakhir" di Beranda
+  // Kartu "Perhitungan Terakhir" di Beranda (data asli, bukan contoh)
   Widget _buildLastCalcCard() {
     final box = BoxDecoration(
       color: Colors.white,
@@ -373,44 +334,12 @@ class _HomeScreenState extends State<HomeScreen> {
     );
 
     final dynamic last = _historyItems.isNotEmpty ? _historyItems.last : null;
-    final Map<String, dynamic>? cloudLast =
-        _cloudHistory.isNotEmpty ? _cloudHistory.first : null;
 
     String title = '';
     String dateText = '';
     List<List<String>> cols = [];
 
-    if (cloudLast != null) {
-      final String type = (cloudLast['type'] ?? '').toString();
-      final String pair = (cloudLast['pair'] ?? '').toString();
-      dateText =
-          '${cloudLast['formattedDate'] ?? ''}, ${cloudLast['formattedTime'] ?? ''}';
-
-      if (type == 'pivot') {
-        title = 'Pivot Point $pair';
-        cols = [
-          ['Support 1 (S1)', _cloudNum(cloudLast['s1'])],
-          ['Pivot (PP)', _cloudNum(cloudLast['pp'])],
-          ['Resistance 1 (R1)', _cloudNum(cloudLast['r1'])],
-        ];
-      } else if (type == 'gold') {
-        title = 'Emas Fisik';
-        final dynamic total = cloudLast['grandTotal'];
-        final dynamic untung = cloudLast['untung'];
-        cols = [
-          ['Emas', '${_cloudNum(cloudLast['weight'])} g'],
-          if (untung is num)
-            [untung < 0 ? 'Rugi' : 'Untung', 'Rp ${_fmtRp(untung.toDouble().abs())}'],
-          ['Nilai Akhir', total is num ? 'Rp ${_fmtRp(total.toDouble())}' : '-'],
-        ];
-      } else if (type == 'nest') {
-        title = 'Nest $pair';
-        cols = [
-          ['Produk', pair.isEmpty ? '-' : pair],
-          ['Sinyal', (cloudLast['bias'] ?? '-').toString().toUpperCase()],
-        ];
-      }
-    } else if (last is PivotCalculation) {
+    if (last is PivotCalculation) {
       title = 'Pivot Point ${last.pair}';
       dateText = '${last.formattedDate}, ${last.formattedTime}';
       cols = [
@@ -573,6 +502,7 @@ class _HomeScreenState extends State<HomeScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Greeting & Tanggal Jam
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -623,6 +553,7 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           const SizedBox(height: 20),
 
+          // HEADER BERITA TERKINI
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -638,7 +569,7 @@ class _HomeScreenState extends State<HomeScreen> {
               InkWell(
                 onTap: () {
                   setState(() {
-                    _selectedIndex = 1;
+                    _selectedIndex = 1; // Navigasi ke Tab Berita
                   });
                 },
                 borderRadius: BorderRadius.circular(8),
@@ -655,6 +586,7 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           const SizedBox(height: 12),
 
+          // CAROUSEL BERITA LIVE (3 SLIDE)
           if (_isLoadingLiveNews)
             Container(
               height: 260,
@@ -840,6 +772,7 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
             const SizedBox(height: 10),
 
+            // DOTS INDIKATOR SLIDER
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: List.generate(
@@ -861,6 +794,7 @@ class _HomeScreenState extends State<HomeScreen> {
           ],
           const SizedBox(height: 20),
 
+          // Card: Grafik Pasar (ringkasan XAUUSD, Hang Seng, JPK)
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
@@ -961,6 +895,7 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           const SizedBox(height: 24),
 
+          // SECTION: Kalkulasi Cepat
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: const [
@@ -983,7 +918,7 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           const SizedBox(height: 12),
           SizedBox(
-            height: 140,
+            height: 176,
             child: ListView(
               scrollDirection: Axis.horizontal,
               clipBehavior: Clip.none,
@@ -992,6 +927,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   width: 180,
                   child: _buildQuickCalcCard(
                     title: 'Pivot Point',
+                    subtitle: 'Level Support &\nResistance intraday...',
                     btnText: 'Buka Kalkulator',
                     icon: Icons.calculate_outlined,
                     onTap: () {
@@ -1008,6 +944,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   width: 180,
                   child: _buildQuickCalcCard(
                     title: 'Emas Fisik',
+                    subtitle: 'Estimasi gramatur,\nkarat, cetak & PPh 22.',
                     btnText: 'Simulasi Fisik',
                     icon: Icons.account_balance_wallet_outlined,
                     onTap: () {
@@ -1024,6 +961,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   width: 180,
                   child: _buildQuickCalcCard(
                     title: 'Nest',
+                    subtitle: 'Follow the trend dari\nharga Open & Close.',
                     btnText: 'Buka Kalkulator',
                     icon: Icons.trending_up_rounded,
                     onTap: () {
@@ -1040,6 +978,7 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           const SizedBox(height: 24),
 
+          // SECTION: Perhitungan Terakhir
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -1070,8 +1009,11 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           const SizedBox(height: 12),
 
+          // Card Hasil Perhitungan Terakhir (data asli)
           _buildLastCalcCard(),
           const SizedBox(height: 8),
+
+          // (Card "Tentang KIMPUL" sudah dipindah ke halaman Profil > About Me)
         ],
       ),
     );
@@ -1079,6 +1021,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _buildQuickCalcCard({
     required String title,
+    required String subtitle,
     required String btnText,
     required IconData icon,
     required VoidCallback onTap,
@@ -1115,6 +1058,15 @@ class _HomeScreenState extends State<HomeScreen> {
                 color: Color(0xFF0F172A),
               ),
             ),
+            const SizedBox(height: 4),
+            Text(
+              subtitle,
+              style: const TextStyle(
+                fontSize: 11,
+                color: Color(0xFF64748B),
+                height: 1.3,
+              ),
+            ),
             const SizedBox(height: 14),
             Row(
               children: [
@@ -1138,79 +1090,60 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _buildCalculatorTab() {
     if (_selectedCalcView == CalcView.pivot) {
-      return Column(
-        children: [
-          AppBar(
-            title: const Text('Kalkulator Pivot Point', style: TextStyle(fontSize: 16)),
-            leading: IconButton(
-              icon: const Icon(Icons.arrow_back),
-              onPressed: () => setState(() => _selectedCalcView = null),
-            ),
-            elevation: 0,
-            backgroundColor: Colors.white,
-            foregroundColor: const Color(0xFF0F172A),
-          ),
-          Expanded(
-            child: PivotCalculator(
-              onSaveHistory: (calc) {
-                setState(() => _historyItems.add(calc));
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Perhitungan Pivot disimpan!')),
-                );
-              },
-            ),
-          ),
-        ],
+      return PivotCalculator(
+        key: ValueKey('pivot-${_pivotInit?.id ?? "baru"}'),
+        initialValues: _pivotInit,
+        onBack: () {
+          setState(() {
+            _selectedCalcView = null;
+            _pivotInit = null;
+          });
+        },
+        onSaveHistory: (calc) {
+          setState(() {
+            _historyItems.add(calc);
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Perhitungan Pivot disimpan!')),
+          );
+        },
+        onOpenDetailModal: (calc) => _showCalcDetail(calc),
       );
     } else if (_selectedCalcView == CalcView.gold) {
-      return Column(
-        children: [
-          AppBar(
-            title: const Text('Kalkulator Emas Fisik', style: TextStyle(fontSize: 16)),
-            leading: IconButton(
-              icon: const Icon(Icons.arrow_back),
-              onPressed: () => setState(() => _selectedCalcView = null),
-            ),
-            elevation: 0,
-            backgroundColor: Colors.white,
-            foregroundColor: const Color(0xFF0F172A),
-          ),
-          Expanded(
-            child: GoldCalculator(
-              onSaveHistory: (calc) {
-                setState(() => _historyItems.add(calc));
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Perhitungan Emas Fisik disimpan!')),
-                );
-              },
-            ),
-          ),
-        ],
+      return GoldCalculator(
+        key: ValueKey('gold-${_goldInit?.id ?? "baru"}'),
+        initialValues: _goldInit,
+        onBack: () {
+          setState(() {
+            _selectedCalcView = null;
+            _goldInit = null;
+          });
+        },
+        onSaveHistory: (calc) {
+          setState(() {
+            _historyItems.add(calc);
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Perhitungan Emas Fisik disimpan!')),
+          );
+        },
+        onOpenDetailModal: (calc) => _showCalcDetail(calc),
       );
     } else if (_selectedCalcView == CalcView.nest) {
-      return Column(
-        children: [
-          AppBar(
-            title: const Text('Kalkulator Nest Strategy', style: TextStyle(fontSize: 16)),
-            leading: IconButton(
-              icon: const Icon(Icons.arrow_back),
-              onPressed: () => setState(() => _selectedCalcView = null),
-            ),
-            elevation: 0,
-            backgroundColor: Colors.white,
-            foregroundColor: const Color(0xFF0F172A),
-          ),
-          Expanded(
-            child: NestCalculator(
-              onSaveHistory: (calc) {
-                setState(() => _historyItems.add(calc));
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Perhitungan Nest disimpan!')),
-                );
-              },
-            ),
-          ),
-        ],
+      return NestCalculator(
+        onBack: () {
+          setState(() {
+            _selectedCalcView = null;
+          });
+        },
+        onSaveHistory: (calc) {
+          setState(() {
+            _historyItems.add(calc);
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Perhitungan Nest disimpan!')),
+          );
+        },
       );
     } else {
       return CalcHubScreen(

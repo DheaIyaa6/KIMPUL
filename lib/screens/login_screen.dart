@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:kimpul/screens/register_screen.dart';
 import 'package:kimpul/screens/lupa_pass.dart';
-import 'package:kimpul/screens/home_screen.dart';
+import 'package:kimpul/screens/home_screen.darT';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -18,56 +18,11 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _isObscure = true;
   bool _isLoading = false;
 
-  // True selama aplikasi mengecek apakah pengguna masih punya sesi login
-  bool _checkingSession = true;
-
-  @override
-  void initState() {
-    super.initState();
-    _checkExistingSession();
-  }
-
   @override
   void dispose() {
     _emailController.dispose();
     _passwordController.dispose();
     super.dispose();
-  }
-
-  // 🌟 Kalau pengguna belum logout (sesi Firebase masih tersimpan di HP),
-  // langsung masuk ke Home tanpa login ulang.
-  // Setelah klik "Keluar Akun" sesi dihapus, jadi form login tampil lagi.
-  Future<void> _checkExistingSession() async {
-    User? user;
-    try {
-      // Status login awal dari Firebase (user kalau masih login, null kalau tidak)
-      user = await FirebaseAuth.instance
-          .authStateChanges()
-          .first
-          .timeout(const Duration(seconds: 5));
-    } catch (_) {
-      user = FirebaseAuth.instance.currentUser;
-    }
-
-    if (!mounted) return;
-
-    if (user == null) {
-      setState(() => _checkingSession = false);
-      return;
-    }
-
-    final String namaUser = user.displayName ?? 'Pengguna';
-    final String emailUser = user.email ?? '';
-
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(
-        builder: (context) => HomeScreen(
-          userName: namaUser,
-          userEmail: emailUser,
-        ),
-      ),
-    );
   }
 
   // 🌟 Fungsi Login menggunakan Firebase Authentication
@@ -155,17 +110,6 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // Sambil mengecek sesi login, tampilkan loading (bukan form login),
-    // supaya form tidak sempat berkedip kalau pengguna sebenarnya masih login.
-    if (_checkingSession) {
-      return const Scaffold(
-        backgroundColor: Colors.white,
-        body: Center(
-          child: CircularProgressIndicator(color: Color(0xFFE93A56)),
-        ),
-      );
-    }
-
     return Scaffold(
       backgroundColor: Colors.white,
       body: SafeArea(
