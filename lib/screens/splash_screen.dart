@@ -1,4 +1,6 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:kimpul/screens/home_screen.dart';
 import 'package:kimpul/screens/login_screen.dart';
 
 class SplashScreen extends StatefulWidget {
@@ -37,12 +39,23 @@ class _SplashScreenState extends State<SplashScreen>
     // 2. Timer diperpanjang jadi 6 detik (6000 milidetik)
     Future.delayed(const Duration(milliseconds: 6000), () {
       if (!mounted) return;
+
+      // 3. Cek sesi login. Firebase menyimpan sesi di HP, jadi selama user
+      //    belum menekan "Keluar Akun", currentUser tetap ada walau app
+      //    ditutup. Kalau masih login -> langsung ke Home, kalau tidak -> Login.
+      final User? user = FirebaseAuth.instance.currentUser;
+      final Widget nextPage = user != null
+          ? HomeScreen(
+              userName: user.displayName ?? 'Pengguna',
+              userEmail: user.email ?? '',
+            )
+          : const LoginScreen();
+
       Navigator.pushReplacement(
         context,
         PageRouteBuilder(
           transitionDuration: const Duration(milliseconds: 800),
-          pageBuilder: (context, animation, secondaryAnimation) =>
-              const LoginScreen(),
+          pageBuilder: (context, animation, secondaryAnimation) => nextPage,
           transitionsBuilder: (context, animation, secondaryAnimation, child) {
             return FadeTransition(opacity: animation, child: child);
           },
