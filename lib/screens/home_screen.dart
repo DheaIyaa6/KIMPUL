@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
@@ -131,9 +132,17 @@ class _HomeScreenState extends State<HomeScreen> {
     NewsDetailModal.show(context, news);
   }
 
-  void _handleLogout() {
-    Navigator.pushAndRemoveUntil(
-      context,
+  // Keluar akun: hapus sesi login di Firebase, lalu kembali ke halaman login.
+  // Tanpa signOut(), app akan langsung masuk lagi ke Home saat dibuka.
+  Future<void> _handleLogout() async {
+    final navigator = Navigator.of(context);
+    try {
+      await FirebaseAuth.instance.signOut();
+    } catch (e) {
+      debugPrint('Gagal signOut: $e');
+    }
+    if (!mounted) return;
+    navigator.pushAndRemoveUntil(
       MaterialPageRoute(builder: (context) => const LoginScreen()),
       (route) => false,
     );
