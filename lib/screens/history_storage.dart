@@ -65,6 +65,9 @@ class HistoryStorage {
 
   /// Simpan satu riwayat. Tidak perlu di-await: kalau HP sedang offline,
   /// Firestore menyimpannya dulu dan mengirimnya saat online lagi.
+  ///
+  /// Semua field angka di bawah dibaca balik oleh halaman Riwayat untuk
+  /// menampilkan rincian lengkap. Field yang tidak diisi (null) dilewati.
   static void save({
     required String id,
     required String type, // 'pivot' | 'gold' | 'nest'
@@ -72,14 +75,42 @@ class HistoryStorage {
     required String formattedTime,
     String? pair,
     String? bias,
-    double? pp,
-    double? r1,
-    double? s1,
-    double? weight,
-    String? purityLabel,
-    double? grandTotal,
     String? title,
     String? description,
+
+    // --- Pivot ---
+    double? high,
+    double? low,
+    double? close,
+    double? open, // dipakai Pivot (Open hari ini) dan Nest (Open kemarin)
+    double? pp,
+    double? r1,
+    double? r2,
+    double? r3,
+    double? r4,
+    double? s1,
+    double? s2,
+    double? s3,
+    double? s4,
+    double? diff, // Pivot: Close - PP, Nest: Close - Open
+
+    // --- Emas Fisik ---
+    double? modal,
+    double? kurs,
+    double? hargaBeliUsd,
+    double? hargaJualUsd,
+    double? hbPerGram,
+    double? hjPerGram,
+    double? selisihPerGram,
+    double? weight, // gram emas yang didapat
+    double? untung,
+    String? purityLabel,
+    double? grandTotal, // nilai akhir
+
+    // --- Nest ---
+    double? diffPercent,
+    String? signal, // 'BUY' | 'SELL' | 'NETRAL'
+
     List<Map<String, dynamic>>? sections, // detail lengkap perhitungan
   }) {
     final col = _col();
@@ -96,14 +127,38 @@ class HistoryStorage {
       'createdMs': DateTime.now().millisecondsSinceEpoch,
       'pair': ?pair,
       'bias': ?bias,
-      'pp': ?pp,
-      'r1': ?r1,
-      's1': ?s1,
-      'weight': ?weight,
-      'purityLabel': ?purityLabel,
-      'grandTotal': ?grandTotal,
       'title': ?title,
       'description': ?description,
+      // Pivot
+      'high': ?high,
+      'low': ?low,
+      'close': ?close,
+      'open': ?open,
+      'pp': ?pp,
+      'r1': ?r1,
+      'r2': ?r2,
+      'r3': ?r3,
+      'r4': ?r4,
+      's1': ?s1,
+      's2': ?s2,
+      's3': ?s3,
+      's4': ?s4,
+      'diff': ?diff,
+      // Emas Fisik
+      'modal': ?modal,
+      'kurs': ?kurs,
+      'hargaBeliUsd': ?hargaBeliUsd,
+      'hargaJualUsd': ?hargaJualUsd,
+      'hbPerGram': ?hbPerGram,
+      'hjPerGram': ?hjPerGram,
+      'selisihPerGram': ?selisihPerGram,
+      'weight': ?weight,
+      'untung': ?untung,
+      'purityLabel': ?purityLabel,
+      'grandTotal': ?grandTotal,
+      // Nest
+      'diffPercent': ?diffPercent,
+      'signal': ?signal,
       'sections': ?sections,
     }).catchError((e) {
       debugPrint('RIWAYAT: gagal simpan: $e');

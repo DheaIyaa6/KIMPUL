@@ -57,6 +57,10 @@ class HistoryItem {
   final double? diffPercent;
   final String? signal;
 
+  // Detail lengkap yang disimpan kalkulator (judul + baris label/nilai).
+  // Kalau ada, layar rincian menampilkan ini persis seperti di kalkulator.
+  final List<Map<String, dynamic>>? sections;
+
   HistoryItem({
     required this.id,
     required this.type,
@@ -94,6 +98,7 @@ class HistoryItem {
     this.grandTotal,
     this.diffPercent,
     this.signal,
+    this.sections,
   });
 }
 
@@ -219,6 +224,16 @@ class _HistoryScreenState extends State<HistoryScreen> {
 
   double? _num(dynamic v) => v is num ? v.toDouble() : null;
 
+  // Ubah data 'sections' dari Firestore jadi daftar Map yang aman dipakai
+  List<Map<String, dynamic>>? _sectionsFrom(dynamic v) {
+    if (v is! List) return null;
+    final out = <Map<String, dynamic>>[];
+    for (final e in v) {
+      if (e is Map) out.add(Map<String, dynamic>.from(e));
+    }
+    return out.isEmpty ? null : out;
+  }
+
   HistoryItem _itemFromMap(Map<String, dynamic> m) {
     return HistoryItem(
       id: (m['id'] ?? '').toString(),
@@ -256,6 +271,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
       grandTotal: _num(m['grandTotal']),
       diffPercent: _num(m['diffPercent']),
       signal: m['signal'] as String?,
+      sections: _sectionsFrom(m['sections']),
     );
   }
 
@@ -510,8 +526,11 @@ class _HistoryScreenState extends State<HistoryScreen> {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
   }
 
-  // ---------- Modal Detail saat Riwayat di-klik ----------
+  // ---------- Modal Detail saat Kartu Riwayat di-klik ----------
   void _showDetailModal(HistoryItem item) {
+    final bool hasSections =
+        item.sections != null && item.sections!.isNotEmpty;
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -561,7 +580,10 @@ class _HistoryScreenState extends State<HistoryScreen> {
                 ),
                 const Divider(height: 24),
 
-                if (item.type == 'nest') ...[
+                // Detail lengkap dari kalkulator (kalau tersimpan)
+                if (hasSections)
+                  ..._buildSections(item.sections!)
+                else if (item.type == 'nest') ...[
                   _detailRow('Produk / Pair', item.pair ?? '-'),
                   _detailRow('Sinyal', (item.signal ?? item.bias ?? '-').toUpperCase(), isBold: true),
                   _detailRow('Open Kemarin', item.open?.toStringAsFixed(2) ?? '-'),
@@ -643,7 +665,129 @@ class _HistoryScreenState extends State<HistoryScreen> {
     );
   }
 
-  // ======================= UI =======================
+  // ---------- Detail lengkap dari 'sections' ----------
+
+  List<Widget> _buildSections(List<Map<String, dynamic>> sections) {
+    final widgets = <Widget>[];
+
+    for (var i = 0; i < sections.length; i++) {
+      final s = sections[i];
+      final String title = (s['title'] ?? '').toString();
+      final String headline = (s['headline'] ?? '').toString();
+      final String tone = (s['tone'] ?? '').toString();
+      final List rows = s['rows'] is List ? s['rows'] as List : const [];
+
+      if (i > 0) widgets.add(const SizedBox(height: 18));
+
+      widgets.add(Text(
+        title.toUpperCase(),
+        style: const TextStyle(
+          fontSize: 11.5,
+          fontWeight: FontWeight.w700,
+          color: Color(0xFF64748B),
+          letterSpacing: 0.5,
+        ),
+      ));
+      widgets.add(const SizedBox(height: 8));
+
+      // Kartu berwarna (sinyal Buy/Sell, untung/rugi)
+      if (headline.isNotEmpty) {
+        final Color c = tone == 'buy'
+            ? _green
+            : (tone == 'sell' ? _red : const Color(0xFF64748B));
+        widgets.add(Container(
+          width: double.infinity,
+          margin: const EdgeInsets.only(bottom: 8),
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: c.withValues(alpha: 0.08),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: c.withValues(alpha: 0.3)),
+          ),
+          child: Text(
+            headline,
+            style: TextStyle(
+              fontSize: 22,
+              fontWeight: FontWeight.w800,
+              color: c,
+              letterSpacing: -0.3,
+            ),
+          ),
+        ));
+      }
+
+      for (final r in rows) {
+        if (r is Map) {
+          widgets.add(_sectionRow(
+            (r['l'] ?? '').toString(),
+            (r['v'] ?? '').toString(),
+          ));
+        }
+      }
+    }
+
+    return widgets;
+  }
+
+  // Baris pendek: label kiri, nilai kanan. Baris panjang (rumus, langkah
+  // hitung, penjelasan): label di atas, nilai di bawah supaya tidak terpotong.
+  Widget _sectionRow(String label, String value) {
+    final bool long = value.contains('\n') || value.length > 30;
+
+    if (long) {
+      return Container(
+        width: double.infinity,
+        margin: const EdgeInsets.symmetric(vertical: 4),
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+          color: const Color(0xFFF8FAFC),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: const Color(0xFFE2E8F0)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(label,
+                style: const TextStyle(fontSize: 12, color: Color(0xFF64748B))),
+            const SizedBox(height: 3),
+            Text(value,
+                style: const TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF0F172A),
+                    height: 1.45)),
+          ],
+        ),
+      );
+    }
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: Text(label,
+                style:
+                    const TextStyle(fontSize: 13, color: Color(0xFF64748B))),
+          ),
+          const SizedBox(width: 12),
+          Flexible(
+            child: Text(
+              value,
+              textAlign: TextAlign.right,
+              style: const TextStyle(
+                  fontSize: 13.5,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF0F172A)),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ======================= UI Utama =======================
   @override
   Widget build(BuildContext context) {
     final primaryColor = Theme.of(context).colorScheme.primary;
@@ -674,25 +818,20 @@ class _HistoryScreenState extends State<HistoryScreen> {
           ),
           const SizedBox(height: 16),
 
-          // Tab
+          // Pilihan Tab Filter
           SingleChildScrollView(
             scrollDirection: Axis.horizontal,
             child: Row(
               children: [
-                _tabChip('all', 'Semua', primaryColor,
-                    count: _calcItems.length),
+                _tabChip('all', 'Semua', primaryColor, count: _calcItems.length),
                 const SizedBox(width: 6),
-                _tabChip('pivot', 'Pivot Point', primaryColor,
-                    icon: Icons.show_chart_rounded),
+                _tabChip('pivot', 'Pivot Point', primaryColor, icon: Icons.show_chart_rounded),
                 const SizedBox(width: 6),
-                _tabChip('gold', 'Emas Fisik', primaryColor,
-                    icon: Icons.view_in_ar_rounded),
+                _tabChip('gold', 'Emas Fisik', primaryColor, icon: Icons.view_in_ar_rounded),
                 const SizedBox(width: 6),
-                _tabChip('nest', 'Nest', primaryColor,
-                    icon: Icons.layers_rounded),
+                _tabChip('nest', 'Nest', primaryColor, icon: Icons.layers_rounded),
                 const SizedBox(width: 6),
-                _tabChip('market', 'Data Pasar', primaryColor,
-                    icon: Icons.candlestick_chart_rounded),
+                _tabChip('market', 'Data Pasar', primaryColor, icon: Icons.candlestick_chart_rounded),
               ],
             ),
           ),
@@ -753,12 +892,10 @@ class _HistoryScreenState extends State<HistoryScreen> {
         Row(
           children: [
             Expanded(
-                child: _dateField(
-                    'Mulai', _start, () => _pickDate(isStart: true))),
+                child: _dateField('Mulai', _start, () => _pickDate(isStart: true))),
             const SizedBox(width: 10),
             Expanded(
-                child: _dateField(
-                    'Akhir', _end, () => _pickDate(isStart: false))),
+                child: _dateField('Akhir', _end, () => _pickDate(isStart: false))),
           ],
         ),
         const SizedBox(height: 14),
@@ -770,8 +907,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                 ? const SizedBox(
                     width: 16,
                     height: 16,
-                    child: CircularProgressIndicator(
-                        strokeWidth: 2, color: Colors.white),
+                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                   )
                 : const Icon(Icons.refresh_rounded, size: 18),
             label: const Text('Refresh'),
@@ -780,10 +916,8 @@ class _HistoryScreenState extends State<HistoryScreen> {
               foregroundColor: Colors.white,
               elevation: 0,
               padding: const EdgeInsets.symmetric(vertical: 14),
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12)),
-              textStyle:
-                  const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              textStyle: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600),
             ),
           ),
         ),
@@ -793,15 +927,13 @@ class _HistoryScreenState extends State<HistoryScreen> {
             Expanded(
               child: OutlinedButton.icon(
                 onPressed: _loading ? null : _exportCsv,
-                icon: Icon(Icons.table_chart_outlined,
-                    size: 18, color: primaryColor),
+                icon: Icon(Icons.table_chart_outlined, size: 18, color: primaryColor),
                 label: Text('Unduh CSV', style: TextStyle(color: primaryColor)),
                 style: OutlinedButton.styleFrom(
                   backgroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(vertical: 12),
                   side: BorderSide(color: primaryColor.withValues(alpha: 0.3)),
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12)),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 ),
               ),
             ),
@@ -809,15 +941,13 @@ class _HistoryScreenState extends State<HistoryScreen> {
             Expanded(
               child: OutlinedButton.icon(
                 onPressed: _loading ? null : _exportPdf,
-                icon: Icon(Icons.picture_as_pdf_outlined,
-                    size: 18, color: primaryColor),
+                icon: Icon(Icons.picture_as_pdf_outlined, size: 18, color: primaryColor),
                 label: Text('Unduh PDF', style: TextStyle(color: primaryColor)),
                 style: OutlinedButton.styleFrom(
                   backgroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(vertical: 12),
                   side: BorderSide(color: primaryColor.withValues(alpha: 0.3)),
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12)),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 ),
               ),
             ),
@@ -843,8 +973,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
     );
   }
 
-  Widget _tabChip(String id, String label, Color primaryColor,
-      {IconData? icon, int? count}) {
+  Widget _tabChip(String id, String label, Color primaryColor, {IconData? icon, int? count}) {
     final active = _tab == id;
     return InkWell(
       onTap: () => _selectTab(id),
@@ -854,15 +983,12 @@ class _HistoryScreenState extends State<HistoryScreen> {
         decoration: BoxDecoration(
           color: active ? primaryColor : Colors.white,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-              color: active ? primaryColor : const Color(0xFFE2E8F0)),
+          border: Border.all(color: active ? primaryColor : const Color(0xFFE2E8F0)),
         ),
         child: Row(
           children: [
             if (icon != null) ...[
-              Icon(icon,
-                  size: 16,
-                  color: active ? Colors.white : const Color(0xFF64748B)),
+              Icon(icon, size: 16, color: active ? Colors.white : const Color(0xFF64748B)),
               const SizedBox(width: 6),
             ],
             Text(label,
@@ -875,17 +1001,14 @@ class _HistoryScreenState extends State<HistoryScreen> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                 decoration: BoxDecoration(
-                  color: active
-                      ? Colors.white.withValues(alpha: 0.2)
-                      : const Color(0xFFF1F5F9),
+                  color: active ? Colors.white.withValues(alpha: 0.2) : const Color(0xFFF1F5F9),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Text('$count',
                     style: TextStyle(
                         fontSize: 11,
                         fontWeight: FontWeight.bold,
-                        color:
-                            active ? Colors.white : const Color(0xFF475569))),
+                        color: active ? Colors.white : const Color(0xFF475569))),
               ),
             ],
           ],
@@ -905,8 +1028,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
         decoration: BoxDecoration(
           color: active ? primaryColor : Colors.white,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-              color: active ? primaryColor : const Color(0xFFE2E8F0)),
+          border: Border.all(color: active ? primaryColor : const Color(0xFFE2E8F0)),
         ),
         child: Text(
           c.label,
@@ -926,9 +1048,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
       children: [
         Text(label,
             style: const TextStyle(
-                fontSize: 12.5,
-                fontWeight: FontWeight.w600,
-                color: Color(0xFF0F172A))),
+                fontSize: 12.5, fontWeight: FontWeight.w600, color: Color(0xFF0F172A))),
         const SizedBox(height: 6),
         InkWell(
           onTap: onTap,
@@ -944,11 +1064,9 @@ class _HistoryScreenState extends State<HistoryScreen> {
               children: [
                 Expanded(
                   child: Text(_uiFmt.format(value),
-                      style: const TextStyle(
-                          fontSize: 13, color: Color(0xFF0F172A))),
+                      style: const TextStyle(fontSize: 13, color: Color(0xFF0F172A))),
                 ),
-                const Icon(Icons.calendar_today_outlined,
-                    size: 16, color: Color(0xFF64748B)),
+                const Icon(Icons.calendar_today_outlined, size: 16, color: Color(0xFF64748B)),
               ],
             ),
           ),
@@ -959,8 +1077,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
 
   Widget _buildTable(List<_HRow> rows, Color primaryColor) {
     final d = _cat.decimals;
-    const head = TextStyle(
-        fontSize: 11.5, fontWeight: FontWeight.w700, color: Color(0xFF64748B));
+    const head = TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: Color(0xFF64748B));
     const body = TextStyle(fontSize: 12, color: Color(0xFF0F172A));
 
     return Container(
@@ -995,9 +1112,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                   DataCell(Text(_uiFmt.format(r.date), style: body)),
                   DataCell(Text(name.isEmpty ? 'Libur' : 'Libur: $name',
                       style: const TextStyle(
-                          fontSize: 12,
-                          fontStyle: FontStyle.italic,
-                          color: Color(0xFF64748B)))),
+                          fontSize: 12, fontStyle: FontStyle.italic, color: Color(0xFF64748B)))),
                   const DataCell(Text('-', style: body)),
                   const DataCell(Text('-', style: body)),
                   const DataCell(Text('-', style: body)),
@@ -1013,13 +1128,9 @@ class _HistoryScreenState extends State<HistoryScreen> {
                 DataCell(Text(_fmt(r.open, d), style: body)),
                 DataCell(Text(_fmt(r.high, d), style: body)),
                 DataCell(Text(_fmt(r.low, d), style: body)),
-                DataCell(Text(_fmt(r.close, d),
-                    style: body.copyWith(fontWeight: FontWeight.w700))),
+                DataCell(Text(_fmt(r.close, d), style: body.copyWith(fontWeight: FontWeight.w700))),
                 DataCell(Text(_pct(pct),
-                    style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
-                        color: color))),
+                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: color))),
               ]);
             }).toList(),
           ),
@@ -1043,9 +1154,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
           const SizedBox(height: 10),
           Text(title,
               style: const TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF0F172A))),
+                  fontSize: 15, fontWeight: FontWeight.bold, color: Color(0xFF0F172A))),
           const SizedBox(height: 4),
           Text(text,
               textAlign: TextAlign.center,
@@ -1055,7 +1164,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
     );
   }
 
-  // ---------- Kartu Riwayat Perhitungan (Diklik Buka Modal) ----------
+  // ---------- Kartu Riwayat Perhitungan ----------
   Widget _typeBadge(String label, IconData icon, Color c) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
@@ -1068,9 +1177,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
         children: [
           Icon(icon, size: 14, color: c),
           const SizedBox(width: 4),
-          Text(label,
-              style: TextStyle(
-                  fontSize: 11, fontWeight: FontWeight.w600, color: c)),
+          Text(label, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: c)),
         ],
       ),
     );
@@ -1089,8 +1196,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                 child: Text(
                   '${item.formattedDate} • ${item.formattedTime}',
                   overflow: TextOverflow.ellipsis,
-                  style:
-                      const TextStyle(fontSize: 11.5, color: Color(0xFF64748B)),
+                  style: const TextStyle(fontSize: 11.5, color: Color(0xFF64748B)),
                 ),
               ),
             ],
@@ -1104,8 +1210,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
           },
           child: const Padding(
             padding: EdgeInsets.all(4.0),
-            child: Icon(Icons.delete_outline_rounded,
-                size: 20, color: Color(0xFF94A3B8)),
+            child: Icon(Icons.delete_outline_rounded, size: 20, color: Color(0xFF94A3B8)),
           ),
         ),
       ],
@@ -1118,8 +1223,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
         border: Border.all(color: const Color(0xFFE2E8F0)),
       );
 
-  Widget _pivotLevelBox(
-      String label, Color labelColor, double? value, Color valueColor) {
+  Widget _pivotLevelBox(String label, Color labelColor, double? value, Color valueColor) {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
       decoration: BoxDecoration(
@@ -1133,18 +1237,14 @@ class _HistoryScreenState extends State<HistoryScreen> {
             fit: BoxFit.scaleDown,
             child: Text(label,
                 style: TextStyle(
-                    fontSize: 10.5,
-                    color: labelColor,
-                    fontWeight: FontWeight.w600)),
+                    fontSize: 10.5, color: labelColor, fontWeight: FontWeight.w600)),
           ),
           const SizedBox(height: 2),
           FittedBox(
             fit: BoxFit.scaleDown,
             child: Text(value?.toStringAsFixed(2) ?? '0.00',
                 style: TextStyle(
-                    fontSize: 13.5,
-                    fontWeight: FontWeight.bold,
-                    color: valueColor)),
+                    fontSize: 13.5, fontWeight: FontWeight.bold, color: valueColor)),
           ),
         ],
       ),
@@ -1153,8 +1253,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
 
   Widget _buildPivotCard(HistoryItem item, Color primaryColor) {
     final String signal = (item.bias ?? '').toLowerCase();
-    final bool showSignal =
-        signal == 'buy' || signal == 'sell' || signal == 'netral';
+    final bool showSignal = signal == 'buy' || signal == 'sell' || signal == 'netral';
 
     Color sigColor = const Color(0xFF64748B);
     IconData sigIcon = Icons.swap_horiz_rounded;
@@ -1198,8 +1297,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                 ),
                 if (showSignal)
                   Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                     decoration: BoxDecoration(
                       color: sigColor.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(20),
@@ -1240,8 +1338,8 @@ class _HistoryScreenState extends State<HistoryScreen> {
                   ),
                   const SizedBox(width: 6),
                   Expanded(
-                    child: _pivotLevelBox('SUPPORT 1 (S1)',
-                        const Color(0xFF047857), item.s1, const Color(0xFF0F172A)),
+                    child: _pivotLevelBox('SUPPORT 1 (S1)', const Color(0xFF047857),
+                        item.s1, const Color(0xFF0F172A)),
                   ),
                 ],
               ),
@@ -1287,20 +1385,6 @@ class _HistoryScreenState extends State<HistoryScreen> {
                         fontWeight: FontWeight.w600,
                         color: Color(0xFF64748B))),
                 const SizedBox(width: 8),
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFF8FAFC),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: const Color(0xFFE2E8F0)),
-                  ),
-                  child: Text(item.purityLabel ?? '24K',
-                      style: const TextStyle(
-                          fontSize: 10.5,
-                          fontWeight: FontWeight.w600,
-                          color: Color(0xFF0F172A))),
-                ),
               ],
             ),
             const SizedBox(height: 12),
@@ -1336,11 +1420,12 @@ class _HistoryScreenState extends State<HistoryScreen> {
     );
   }
 
-  Widget _buildGenericCard(
-      HistoryItem item, String title, IconData icon, Color c) {
-    final text =
-        item.description ?? 'Data ${title.toLowerCase()} tersimpan pada riwayat ini.';
-    final String titleText = item.title ?? (item.pair != null && item.signal != null ? '${item.pair} • ${item.signal}' : 'Riwayat $title');
+  Widget _buildGenericCard(HistoryItem item, String title, IconData icon, Color c) {
+    final text = item.description ?? 'Data ${title.toLowerCase()} tersimpan pada riwayat ini.';
+    final String titleText = item.title ??
+        (item.pair != null && item.signal != null
+            ? '${item.pair} • ${item.signal}'
+            : 'Riwayat $title');
 
     return InkWell(
       onTap: () => _showDetailModal(item),
@@ -1355,15 +1440,12 @@ class _HistoryScreenState extends State<HistoryScreen> {
             const SizedBox(height: 12),
             Text(titleText,
                 style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFF0F172A))),
+                    fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF0F172A))),
             const SizedBox(height: 8),
             Text(text,
                 maxLines: 3,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                    fontSize: 12.5, color: Color(0xFF64748B), height: 1.4)),
+                style: const TextStyle(fontSize: 12.5, color: Color(0xFF64748B), height: 1.4)),
           ],
         ),
       ),
