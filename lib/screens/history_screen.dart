@@ -12,7 +12,7 @@ import 'package:share_plus/share_plus.dart';
 
 import 'package:kimpul/screens/history_storage.dart';
 
-// Model riwayat perhitungan (dipakai file lain, jangan diubah)
+// Model riwayat perhitungan lengkap
 class HistoryItem {
   final String id;
   final String type; // 'pivot', 'gold', 'nest', atau 'history_closing'
@@ -20,15 +20,42 @@ class HistoryItem {
   final String formattedTime;
   final String? pair;
   final String? bias;
-  final double? pp;
-  final double? r1;
-  final double? s1;
-  final double? weight;
-  final String? purityLabel;
-  final double? grandTotal;
   final String? title;
   final String? description;
   final String? link;
+
+  // Field Pivot
+  final double? high;
+  final double? low;
+  final double? close;
+  final double? open;
+  final double? pp;
+  final double? r1;
+  final double? r2;
+  final double? r3;
+  final double? r4;
+  final double? s1;
+  final double? s2;
+  final double? s3;
+  final double? s4;
+  final double? diff;
+
+  // Field Gold
+  final double? modal;
+  final double? kurs;
+  final double? hargaBeliUsd;
+  final double? hargaJualUsd;
+  final double? hbPerGram;
+  final double? hjPerGram;
+  final double? selisihPerGram;
+  final double? weight;
+  final double? untung;
+  final String? purityLabel;
+  final double? grandTotal;
+
+  // Field Nest
+  final double? diffPercent;
+  final String? signal;
 
   HistoryItem({
     required this.id,
@@ -37,15 +64,36 @@ class HistoryItem {
     required this.formattedTime,
     this.pair,
     this.bias,
-    this.pp,
-    this.r1,
-    this.s1,
-    this.weight,
-    this.purityLabel,
-    this.grandTotal,
     this.title,
     this.description,
     this.link,
+    this.high,
+    this.low,
+    this.close,
+    this.open,
+    this.pp,
+    this.r1,
+    this.r2,
+    this.r3,
+    this.r4,
+    this.s1,
+    this.s2,
+    this.s3,
+    this.s4,
+    this.diff,
+    this.modal,
+    this.kurs,
+    this.hargaBeliUsd,
+    this.hargaJualUsd,
+    this.hbPerGram,
+    this.hjPerGram,
+    this.selisihPerGram,
+    this.weight,
+    this.untung,
+    this.purityLabel,
+    this.grandTotal,
+    this.diffPercent,
+    this.signal,
   });
 }
 
@@ -111,10 +159,8 @@ class _HistoryScreenState extends State<HistoryScreen> {
 
   final DateFormat _uiFmt = DateFormat('dd/MM/yyyy');
 
-  // Tab aktif: 'all', 'pivot', 'gold', 'nest', 'market'
   String _tab = 'all';
 
-  // Data Newsmaker
   List<_HRow> _all = [];
   bool _loading = false;
   bool _marketLoaded = false;
@@ -124,7 +170,6 @@ class _HistoryScreenState extends State<HistoryScreen> {
   late DateTime _start;
   late DateTime _end;
 
-  // Riwayat perhitungan dari cloud (Firestore, per akun)
   StreamSubscription<User?>? _authSub;
   StreamSubscription<List<Map<String, dynamic>>>? _histSub;
   String? _uid;
@@ -152,7 +197,6 @@ class _HistoryScreenState extends State<HistoryScreen> {
     super.dispose();
   }
 
-  // Pasang listener riwayat milik user yang sedang login
   void _bindCloud(User? user) {
     _histSub?.cancel();
     _histSub = null;
@@ -183,14 +227,35 @@ class _HistoryScreenState extends State<HistoryScreen> {
       formattedTime: (m['formattedTime'] ?? '').toString(),
       pair: m['pair'] as String?,
       bias: m['bias'] as String?,
-      pp: _num(m['pp']),
-      r1: _num(m['r1']),
-      s1: _num(m['s1']),
-      weight: _num(m['weight']),
-      purityLabel: m['purityLabel'] as String?,
-      grandTotal: _num(m['grandTotal']),
       title: m['title'] as String?,
       description: m['description'] as String?,
+      high: _num(m['high']),
+      low: _num(m['low']),
+      close: _num(m['close']),
+      open: _num(m['open']),
+      pp: _num(m['pp']),
+      r1: _num(m['r1']),
+      r2: _num(m['r2']),
+      r3: _num(m['r3']),
+      r4: _num(m['r4']),
+      s1: _num(m['s1']),
+      s2: _num(m['s2']),
+      s3: _num(m['s3']),
+      s4: _num(m['s4']),
+      diff: _num(m['diff']),
+      modal: _num(m['modal']),
+      kurs: _num(m['kurs']),
+      hargaBeliUsd: _num(m['hargaBeliUsd']),
+      hargaJualUsd: _num(m['hargaJualUsd']),
+      hbPerGram: _num(m['hbPerGram']),
+      hjPerGram: _num(m['hjPerGram']),
+      selisihPerGram: _num(m['selisihPerGram']),
+      weight: _num(m['weight']),
+      untung: _num(m['untung']),
+      purityLabel: m['purityLabel'] as String?,
+      grandTotal: _num(m['grandTotal']),
+      diffPercent: _num(m['diffPercent']),
+      signal: m['signal'] as String?,
     );
   }
 
@@ -201,10 +266,6 @@ class _HistoryScreenState extends State<HistoryScreen> {
     }
   }
 
-  // ---------- Riwayat perhitungan ----------
-
-  // Kalau sudah login dan data cloud sudah datang, pakai cloud.
-  // Kalau belum, pakai daftar dari halaman induk.
   List<HistoryItem> get _sourceItems =>
       (_uid != null && _cloudLoaded) ? _cloud : widget.historyItems;
 
@@ -217,7 +278,6 @@ class _HistoryScreenState extends State<HistoryScreen> {
     return items.where((i) => i.type == _tab).toList();
   }
 
-  // ---------- Ambil data Newsmaker ----------
   static double? _d(dynamic v) =>
       v == null ? null : double.tryParse(v.toString());
 
@@ -327,7 +387,6 @@ class _HistoryScreenState extends State<HistoryScreen> {
     });
   }
 
-  // ---------- Unduh CSV / PDF ----------
   String get _fileBase =>
       'histori_${_cat.label.toLowerCase().replaceAll(' ', '_')}_'
       '${DateFormat('yyyyMMdd').format(_start)}-${DateFormat('yyyyMMdd').format(_end)}';
@@ -451,6 +510,139 @@ class _HistoryScreenState extends State<HistoryScreen> {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
   }
 
+  // ---------- Modal Detail saat Riwayat di-klik ----------
+  void _showDetailModal(HistoryItem item) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        return SafeArea(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFE2E8F0),
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'Rincian Riwayat (${item.type.toUpperCase()})',
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF0F172A),
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close_rounded),
+                      onPressed: () => Navigator.pop(ctx),
+                    ),
+                  ],
+                ),
+                Text(
+                  '${item.formattedDate} • ${item.formattedTime}',
+                  style: const TextStyle(fontSize: 12, color: Color(0xFF64748B)),
+                ),
+                const Divider(height: 24),
+
+                if (item.type == 'nest') ...[
+                  _detailRow('Produk / Pair', item.pair ?? '-'),
+                  _detailRow('Sinyal', (item.signal ?? item.bias ?? '-').toUpperCase(), isBold: true),
+                  _detailRow('Open Kemarin', item.open?.toStringAsFixed(2) ?? '-'),
+                  _detailRow('Close Kemarin', item.close?.toStringAsFixed(2) ?? '-'),
+                  _detailRow('Selisih', item.diff != null ? (item.diff! >= 0 ? '+${item.diff!.toStringAsFixed(2)}' : item.diff!.toStringAsFixed(2)) : '-'),
+                  _detailRow('Perubahan (%)', item.diffPercent != null ? '${item.diffPercent!.toStringAsFixed(2)}%' : '-'),
+                ] else if (item.type == 'pivot') ...[
+                  _detailRow('Produk / Pair', item.pair ?? '-'),
+                  _detailRow('Sinyal', (item.bias ?? '-').toUpperCase(), isBold: true),
+                  _detailRow('High', item.high?.toStringAsFixed(2) ?? '-'),
+                  _detailRow('Low', item.low?.toStringAsFixed(2) ?? '-'),
+                  _detailRow('Close', item.close?.toStringAsFixed(2) ?? '-'),
+                  _detailRow('Open', item.open?.toStringAsFixed(2) ?? '-'),
+                  const Divider(),
+                  _detailRow('Pivot Point (PP)', item.pp?.toStringAsFixed(2) ?? '-', isBold: true),
+                  _detailRow('Resistance 1 (R1)', item.r1?.toStringAsFixed(2) ?? '-'),
+                  _detailRow('Resistance 2 (R2)', item.r2?.toStringAsFixed(2) ?? '-'),
+                  _detailRow('Resistance 3 (R3)', item.r3?.toStringAsFixed(2) ?? '-'),
+                  _detailRow('Resistance 4 (R4)', item.r4?.toStringAsFixed(2) ?? '-'),
+                  _detailRow('Support 1 (S1)', item.s1?.toStringAsFixed(2) ?? '-'),
+                  _detailRow('Support 2 (S2)', item.s2?.toStringAsFixed(2) ?? '-'),
+                  _detailRow('Support 3 (S3)', item.s3?.toStringAsFixed(2) ?? '-'),
+                  _detailRow('Support 4 (S4)', item.s4?.toStringAsFixed(2) ?? '-'),
+                ] else if (item.type == 'gold') ...[
+                  _detailRow('Modal', _rupiah(item.modal ?? 0)),
+                  _detailRow('Kurs IDR/USD', _rupiah(item.kurs ?? 0)),
+                  _detailRow('Harga Beli (HB USD)', '${item.hargaBeliUsd ?? 0} USD'),
+                  _detailRow('Harga Jual (HJ USD)', '${item.hargaJualUsd ?? 0} USD'),
+                  const Divider(),
+                  _detailRow('HB per Gram', _rupiah(item.hbPerGram ?? 0)),
+                  _detailRow('HJ per Gram', _rupiah(item.hjPerGram ?? 0)),
+                  _detailRow('Selisih per Gram', _rupiah(item.selisihPerGram ?? 0)),
+                  _detailRow('Emas Didapat', '${item.weight ?? 0} gram'),
+                  _detailRow('Estimasi Untung/Rugi', _rupiah(item.untung ?? 0), isBold: true),
+                  _detailRow('Nilai Akhir', _rupiah(item.grandTotal ?? 0), isBold: true),
+                ] else ...[
+                  Text(item.title ?? 'Detail Riwayat', style: const TextStyle(fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 8),
+                  Text(item.description ?? 'Tidak ada rincian tambahan.'),
+                ],
+                const SizedBox(height: 20),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: () => Navigator.pop(ctx),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Theme.of(context).colorScheme.primary,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                    child: const Text('Tutup'),
+                  ),
+                )
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _detailRow(String label, String val, {bool isBold = false}) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(label, style: const TextStyle(fontSize: 13, color: Color(0xFF64748B))),
+          Text(
+            val,
+            style: TextStyle(
+              fontSize: 13.5,
+              fontWeight: isBold ? FontWeight.bold : FontWeight.w600,
+              color: const Color(0xFF0F172A),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   // ======================= UI =======================
   @override
   Widget build(BuildContext context) {
@@ -477,7 +669,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                 ? (_loading
                     ? 'Memuat data dari Newsmaker...'
                     : '${_rows.length} baris | Sumber: Newsmaker')
-                : 'Daftar kalkulasi pivot point, emas fisik, dan nest yang tersimpan di akun Anda.',
+                : 'Klik kartu untuk melihat rincian kalkulasi secara lengkap.',
             style: const TextStyle(fontSize: 13, color: Color(0xFF64748B)),
           ),
           const SizedBox(height: 16),
@@ -515,7 +707,6 @@ class _HistoryScreenState extends State<HistoryScreen> {
     );
   }
 
-  // ---------- Isi tab perhitungan ----------
   Widget _buildCalcSection(Color primaryColor) {
     final items = _filteredCalc;
     if (items.isEmpty) {
@@ -539,7 +730,6 @@ class _HistoryScreenState extends State<HistoryScreen> {
     );
   }
 
-  // ---------- Isi tab Data Pasar ----------
   Widget _buildMarketSection(Color primaryColor) {
     final rows = _rows;
     return Column(
@@ -653,7 +843,6 @@ class _HistoryScreenState extends State<HistoryScreen> {
     );
   }
 
-  // ---------- Widget kecil ----------
   Widget _tabChip(String id, String label, Color primaryColor,
       {IconData? icon, int? count}) {
     final active = _tab == id;
@@ -866,7 +1055,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
     );
   }
 
-  // ---------- Kartu riwayat perhitungan ----------
+  // ---------- Kartu Riwayat Perhitungan (Diklik Buka Modal) ----------
   Widget _typeBadge(String label, IconData icon, Color c) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
@@ -909,7 +1098,6 @@ class _HistoryScreenState extends State<HistoryScreen> {
         ),
         InkWell(
           onTap: () {
-            // Hapus dari cloud dan dari daftar halaman induk
             HistoryStorage.delete(item.id);
             widget.onDeleteHistory(item.id);
             _toast('Item perhitungan telah dihapus.');
@@ -930,7 +1118,6 @@ class _HistoryScreenState extends State<HistoryScreen> {
         border: Border.all(color: const Color(0xFFE2E8F0)),
       );
 
-  // Kotak putih berisi satu level (PP / R1 / S1) di kartu Pivot
   Widget _pivotLevelBox(
       String label, Color labelColor, double? value, Color valueColor) {
     return Container(
@@ -965,8 +1152,6 @@ class _HistoryScreenState extends State<HistoryScreen> {
   }
 
   Widget _buildPivotCard(HistoryItem item, Color primaryColor) {
-    // Sinyal disimpan di field bias: 'buy' / 'sell' / 'netral'.
-    // Riwayat lama (bullish/bearish/sideway) tidak menampilkan badge.
     final String signal = (item.bias ?? '').toLowerCase();
     final bool showSignal =
         signal == 'buy' || signal == 'sell' || signal == 'netral';
@@ -981,164 +1166,172 @@ class _HistoryScreenState extends State<HistoryScreen> {
       sigIcon = Icons.trending_down_rounded;
     }
 
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: _cardDeco,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _cardHeader(item, 'Pivot Point', Icons.show_chart_rounded, primaryColor),
-          const SizedBox(height: 12),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text('PASAR KOMODITAS',
-                      style: TextStyle(
-                          fontSize: 11,
-                          color: Color(0xFF64748B),
-                          fontWeight: FontWeight.w600,
-                          letterSpacing: 0.5)),
-                  Text(item.pair ?? '-',
-                      style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: Color(0xFF0F172A))),
-                ],
-              ),
-              if (showSignal)
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: sigColor.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: sigColor.withValues(alpha: 0.3)),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(sigIcon, size: 15, color: sigColor),
-                      const SizedBox(width: 4),
-                      Text(signal.toUpperCase(),
-                          style: TextStyle(
-                              fontSize: 11.5,
-                              fontWeight: FontWeight.w600,
-                              color: sigColor)),
-                    ],
-                  ),
-                ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: const Color(0xFFF8FAFC),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: const Color(0xFFE2E8F0)),
-            ),
-            child: Row(
+    return InkWell(
+      onTap: () => _showDetailModal(item),
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: _cardDeco,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _cardHeader(item, 'Pivot Point', Icons.show_chart_rounded, primaryColor),
+            const SizedBox(height: 12),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Expanded(
-                  child: _pivotLevelBox('PIVOT (PP)', const Color(0xFF64748B),
-                      item.pp, primaryColor),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('PASAR KOMODITAS',
+                        style: TextStyle(
+                            fontSize: 11,
+                            color: Color(0xFF64748B),
+                            fontWeight: FontWeight.w600,
+                            letterSpacing: 0.5)),
+                    Text(item.pair ?? '-',
+                        style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFF0F172A))),
+                  ],
                 ),
-                const SizedBox(width: 6),
-                Expanded(
-                  child: _pivotLevelBox('RESIST 1 (R1)', primaryColor, item.r1,
-                      const Color(0xFF0F172A)),
-                ),
-                const SizedBox(width: 6),
-                Expanded(
-                  child: _pivotLevelBox('SUPPORT 1 (S1)',
-                      const Color(0xFF047857), item.s1, const Color(0xFF0F172A)),
-                ),
+                if (showSignal)
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: sigColor.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: sigColor.withValues(alpha: 0.3)),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(sigIcon, size: 15, color: sigColor),
+                        const SizedBox(width: 4),
+                        Text(signal.toUpperCase(),
+                            style: TextStyle(
+                                fontSize: 11.5,
+                                fontWeight: FontWeight.w600,
+                                color: sigColor)),
+                      ],
+                    ),
+                  ),
               ],
             ),
-          ),
-        ],
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF8FAFC),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFFE2E8F0)),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: _pivotLevelBox('PIVOT (PP)', const Color(0xFF64748B),
+                        item.pp, primaryColor),
+                  ),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: _pivotLevelBox('RESIST 1 (R1)', primaryColor, item.r1,
+                        const Color(0xFF0F172A)),
+                  ),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: _pivotLevelBox('SUPPORT 1 (S1)',
+                        const Color(0xFF047857), item.s1, const Color(0xFF0F172A)),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
 
   Widget _buildGoldCard(HistoryItem item, Color primaryColor) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: _cardDeco,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _cardHeader(item, 'Emas Fisik', Icons.view_in_ar_rounded, primaryColor),
-          const SizedBox(height: 12),
-          const Text('SPESIFIKASI FISIK',
-              style: TextStyle(
-                  fontSize: 11,
-                  color: Color(0xFF64748B),
-                  fontWeight: FontWeight.w600,
-                  letterSpacing: 0.5)),
-          const SizedBox(height: 4),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.baseline,
-            textBaseline: TextBaseline.alphabetic,
-            children: [
-              Text('${item.weight ?? 0}',
-                  style: const TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.w800,
-                      color: Color(0xFF0F172A))),
-              const SizedBox(width: 4),
-              const Text('gram',
-                  style: TextStyle(
-                      fontSize: 12.5,
-                      fontWeight: FontWeight.w600,
-                      color: Color(0xFF64748B))),
-              const SizedBox(width: 8),
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF8FAFC),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: const Color(0xFFE2E8F0)),
-                ),
-                child: Text(item.purityLabel ?? '24K',
-                    style: const TextStyle(
-                        fontSize: 10.5,
-                        fontWeight: FontWeight.w600,
-                        color: Color(0xFF0F172A))),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: const Color(0xFFF8FAFC),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: const Color(0xFFE2E8F0)),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+    return InkWell(
+      onTap: () => _showDetailModal(item),
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: _cardDeco,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _cardHeader(item, 'Emas Fisik', Icons.view_in_ar_rounded, primaryColor),
+            const SizedBox(height: 12),
+            const Text('SPESIFIKASI FISIK',
+                style: TextStyle(
+                    fontSize: 11,
+                    color: Color(0xFF64748B),
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: 0.5)),
+            const SizedBox(height: 4),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.baseline,
+              textBaseline: TextBaseline.alphabetic,
               children: [
-                const Text('Estimasi Total Akhir',
-                    style: TextStyle(
-                        fontSize: 11,
-                        color: Color(0xFF64748B),
-                        fontWeight: FontWeight.w500)),
-                const SizedBox(height: 2),
-                Text(_rupiah(item.grandTotal ?? 0),
-                    style: TextStyle(
+                Text('${item.weight ?? 0}',
+                    style: const TextStyle(
                         fontSize: 20,
                         fontWeight: FontWeight.w800,
-                        color: primaryColor,
-                        letterSpacing: -0.5)),
+                        color: Color(0xFF0F172A))),
+                const SizedBox(width: 4),
+                const Text('gram',
+                    style: TextStyle(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF64748B))),
+                const SizedBox(width: 8),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF8FAFC),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: const Color(0xFFE2E8F0)),
+                  ),
+                  child: Text(item.purityLabel ?? '24K',
+                      style: const TextStyle(
+                          fontSize: 10.5,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFF0F172A))),
+                ),
               ],
             ),
-          ),
-        ],
+            const SizedBox(height: 12),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF8FAFC),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFFE2E8F0)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Estimasi Nilai Akhir',
+                      style: TextStyle(
+                          fontSize: 11,
+                          color: Color(0xFF64748B),
+                          fontWeight: FontWeight.w500)),
+                  const SizedBox(height: 2),
+                  Text(_rupiah(item.grandTotal ?? 0),
+                      style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.w800,
+                          color: primaryColor,
+                          letterSpacing: -0.5)),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1147,26 +1340,32 @@ class _HistoryScreenState extends State<HistoryScreen> {
       HistoryItem item, String title, IconData icon, Color c) {
     final text =
         item.description ?? 'Data ${title.toLowerCase()} tersimpan pada riwayat ini.';
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: _cardDeco,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _cardHeader(item, title, icon, c),
-          const SizedBox(height: 12),
-          Text(item.title ?? item.pair ?? 'Riwayat $title',
-              style: const TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF0F172A))),
-          const SizedBox(height: 8),
-          Text(text,
-              maxLines: 3,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                  fontSize: 12.5, color: Color(0xFF64748B), height: 1.4)),
-        ],
+    final String titleText = item.title ?? (item.pair != null && item.signal != null ? '${item.pair} • ${item.signal}' : 'Riwayat $title');
+
+    return InkWell(
+      onTap: () => _showDetailModal(item),
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: _cardDeco,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _cardHeader(item, title, icon, c),
+            const SizedBox(height: 12),
+            Text(titleText,
+                style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF0F172A))),
+            const SizedBox(height: 8),
+            Text(text,
+                maxLines: 3,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                    fontSize: 12.5, color: Color(0xFF64748B), height: 1.4)),
+          ],
+        ),
       ),
     );
   }

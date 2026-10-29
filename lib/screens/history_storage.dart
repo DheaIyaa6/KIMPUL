@@ -4,9 +4,6 @@ import 'package:flutter/foundation.dart';
 
 /// Penyimpanan riwayat perhitungan di Firestore, terikat ke akun (uid).
 /// Lokasi: users/{uid}/history/{id}
-///
-/// Karena tersimpan di cloud per akun, riwayat tetap ada setelah logout,
-/// setelah install ulang, dan terlihat di semua HP dengan akun yang sama.
 class HistoryStorage {
   static CollectionReference<Map<String, dynamic>>? _col() {
     final user = FirebaseAuth.instance.currentUser;
@@ -17,8 +14,7 @@ class HistoryStorage {
         .collection('history');
   }
 
-  /// Simpan satu riwayat. Tidak perlu di-await: kalau HP sedang offline,
-  /// Firestore menyimpannya dulu dan mengirimnya saat online lagi.
+  /// Simpan riwayat lengkap.
   static void save({
     required String id,
     required String type, // 'pivot' | 'gold' | 'nest'
@@ -26,14 +22,41 @@ class HistoryStorage {
     required String formattedTime,
     String? pair,
     String? bias,
-    double? pp,
-    double? r1,
-    double? s1,
-    double? weight,
-    String? purityLabel,
-    double? grandTotal,
     String? title,
     String? description,
+    
+    // Field Pivot
+    double? high,
+    double? low,
+    double? close,
+    double? open,
+    double? pp,
+    double? r1,
+    double? r2,
+    double? r3,
+    double? r4,
+    double? s1,
+    double? s2,
+    double? s3,
+    double? s4,
+    double? diff,
+
+    // Field Gold
+    double? modal,
+    double? kurs,
+    double? hargaBeliUsd,
+    double? hargaJualUsd,
+    double? hbPerGram,
+    double? hjPerGram,
+    double? selisihPerGram,
+    double? weight,
+    double? untung,
+    String? purityLabel,
+    double? grandTotal,
+
+    // Field Nest
+    double? diffPercent,
+    String? signal,
   }) {
     final col = _col();
     if (col == null) {
@@ -41,28 +64,60 @@ class HistoryStorage {
       return;
     }
 
-    col.doc(id).set({
+    final data = <String, dynamic>{
       'id': id,
       'type': type,
       'formattedDate': formattedDate,
       'formattedTime': formattedTime,
       'createdMs': DateTime.now().millisecondsSinceEpoch,
-      'pair': ?pair,
-      'bias': ?bias,
-      'pp': ?pp,
-      'r1': ?r1,
-      's1': ?s1,
-      'weight': ?weight,
-      'purityLabel': ?purityLabel,
-      'grandTotal': ?grandTotal,
-      'title': ?title,
-      'description': ?description,
-    }).catchError((e) {
+      'pair': pair,
+      'bias': bias,
+      'title': title,
+      'description': description,
+      
+      // Pivot
+      'high': high,
+      'low': low,
+      'close': close,
+      'open': open,
+      'pp': pp,
+      'r1': r1,
+      'r2': r2,
+      'r3': r3,
+      'r4': r4,
+      's1': s1,
+      's2': s2,
+      's3': s3,
+      's4': s4,
+      'diff': diff,
+
+      // Gold
+      'modal': modal,
+      'kurs': kurs,
+      'hargaBeliUsd': hargaBeliUsd,
+      'hargaJualUsd': hargaJualUsd,
+      'hbPerGram': hbPerGram,
+      'hjPerGram': hjPerGram,
+      'selisihPerGram': selisihPerGram,
+      'weight': weight,
+      'untung': untung,
+      'purityLabel': purityLabel,
+      'grandTotal': grandTotal,
+
+      // Nest
+      'diffPercent': diffPercent,
+      'signal': signal,
+    };
+
+    // Bersihkan entri dengan nilai null agar tidak mengotori Firestore
+    data.removeWhere((key, value) => value == null);
+
+    col.doc(id).set(data).catchError((e) {
       debugPrint('RIWAYAT: gagal simpan: $e');
     });
   }
 
-  /// Dengarkan riwayat milik [uid] secara realtime, terbaru di atas.
+  /// Dengarkan riwayat milik [uid] secara realtime
   static Stream<List<Map<String, dynamic>>> watch(String uid) {
     return FirebaseFirestore.instance
         .collection('users')

@@ -1,18 +1,20 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 /// Halaman Ubah Kata Sandi — terpisah dari ProfileScreen.
+///
+/// Halaman ini mengubah kata sandi langsung di Firebase Authentication:
+/// 1) verifikasi ulang dengan kata sandi lama, 2) pasang kata sandi baru.
+///
+/// [onSubmit] bersifat opsional, hanya dipanggil SETELAH kata sandi di
+/// Firebase berhasil diubah (misalnya untuk mencatat log atau menampilkan
+/// pesan tambahan). Tidak perlu diisi.
 ///
 /// Cara pakai:
 ///
 /// Navigator.push(
 ///   context,
-///   MaterialPageRoute(
-///     builder: (_) => ChangePasswordScreen(
-///       onSubmit: (oldPassword, newPassword) async {
-///         // TODO: panggil API ubah password di sini
-///       },
-///     ),
-///   ),
+///   MaterialPageRoute(builder: (_) => const ChangePasswordScreen()),
 /// );
 class ChangePasswordScreen extends StatefulWidget {
   final Future<void> Function(String oldPassword, String newPassword)?
@@ -82,27 +84,92 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
     return null;
   }
 
+  // Ubah kata sandi di Firebase Authentication.
+  // Firebase mewajibkan verifikasi ulang (re-authenticate) sebelum
+  // kata sandi boleh diganti.
+  Future<void> _changePasswordInFirebase(
+      String oldPassword, String newPassword) async {
+    final User? user = FirebaseAuth.instance.currentUser;
+    final String? email = user?.email;
+
+    if (user == null || email == null || email.isEmpty) {
+      throw FirebaseAuthException(
+        code: 'no-current-user',
+        message: 'Sesi login tidak ditemukan.',
+      );
+    }
+
+    final credential = EmailAuthProvider.credential(
+      email: email,
+      password: oldPassword,
+    );
+
+    await user.reauthenticateWithCredential(credential);
+    await user.updatePassword(newPassword);
+  }
+
+  // Pesan error yang mudah dipahami
+  String _friendlyError(FirebaseAuthException e) {
+    switch (e.code) {
+      case 'wrong-password':
+      case 'invalid-credential':
+      case 'invalid-login-credentials':
+        return 'Kata sandi lama salah.';
+      case 'weak-password':
+        return 'Kata sandi baru terlalu lemah. Gunakan yang lebih kuat.';
+      case 'requires-recent-login':
+        return 'Demi keamanan, keluar dari akun lalu masuk lagi, kemudian coba ubah kata sandi kembali.';
+      case 'too-many-requests':
+        return 'Terlalu banyak percobaan. Coba lagi beberapa saat lagi.';
+      case 'network-request-failed':
+        return 'Tidak ada koneksi internet. Periksa jaringan lalu coba lagi.';
+      case 'no-current-user':
+      case 'user-not-found':
+      case 'user-mismatch':
+        return 'Sesi login tidak ditemukan. Silakan masuk ulang.';
+      default:
+        return 'Gagal mengubah kata sandi (${e.code}).';
+    }
+  }
+
+  void _showError(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: const Color(0xFFBE123C),
+      ),
+    );
+  }
+
   Future<void> _handleSubmit() async {
     if (!_formKey.currentState!.validate()) return;
 
+    final String oldPassword = _oldPasswordController.text;
+    final String newPassword = _newPasswordController.text;
+
     setState(() => _isSubmitting = true);
     try {
+      // 1. Ubah di Firebase Authentication (ini yang membuat login
+      //    berikutnya memakai kata sandi baru)
+      await _changePasswordInFirebase(oldPassword, newPassword);
+
+      // 2. Callback opsional dari pemanggil
       if (widget.onSubmit != null) {
-        await widget.onSubmit!(
-          _oldPasswordController.text,
-          _newPasswordController.text,
-        );
+        await widget.onSubmit!(oldPassword, newPassword);
       }
+
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Kata sandi berhasil diubah')),
       );
       Navigator.pop(context, true);
+    } on FirebaseAuthException catch (e) {
+      debugPrint('UBAH SANDI gagal: ${e.code} ${e.message}');
+      _showError(_friendlyError(e));
     } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Gagal mengubah kata sandi: $e')),
-      );
+      debugPrint('UBAH SANDI gagal: $e');
+      _showError('Gagal mengubah kata sandi: $e');
     } finally {
       if (mounted) setState(() => _isSubmitting = false);
     }
@@ -250,8 +317,8 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
       decoration: InputDecoration(
         hintText: hint,
         hintStyle: const TextStyle(color: Color(0xFF94A3B8), fontSize: 13),
-        prefixIcon:
-            const Icon(Icons.lock_outline_rounded, size: 20, color: Color(0xFF64748B)),
+        prefixIcon: const Icon(Icons.lock_outline_rounded,
+            size: 20, color: Color(0xFF64748B)),
         suffixIcon: IconButton(
           onPressed: onToggle,
           icon: Icon(
