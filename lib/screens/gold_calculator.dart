@@ -84,6 +84,9 @@ class _GoldCalculatorState extends State<GoldCalculator> {
   static const Color _accent = Color(0xFFE93A56);
   static const Color _profitColor = Color(0xFF059669);
 
+  // Warna teks gelap (hitam kebiruan, sama dengan teks lain di app)
+  static const Color _textDark = Color(0xFF0F172A);
+
   // Contoh angka awal (bisa diedit pengguna)
   static const double _exModal = 100000000;
   static const double _exKurs = 18000; // diganti kurs live kalau berhasil diambil
@@ -329,13 +332,13 @@ class _GoldCalculatorState extends State<GoldCalculator> {
                   child: Row(
                     children: [
                       Icon(Icons.arrow_back_rounded,
-                          size: 18, color: Color(0xFF64748B)),
+                          size: 18, color: _accent),
                       SizedBox(width: 4),
                       Text('Kembali',
                           style: TextStyle(
                               fontSize: 13,
                               fontWeight: FontWeight.w500,
-                              color: Color(0xFF64748B))),
+                              color: _accent)),
                     ],
                   ),
                 ),
@@ -350,7 +353,7 @@ class _GoldCalculatorState extends State<GoldCalculator> {
             style: TextStyle(
                 fontSize: 20,
                 fontWeight: FontWeight.bold,
-                color: _accent,
+                color: _textDark,
                 letterSpacing: -0.5),
           ),
           const SizedBox(height: 2),
@@ -371,7 +374,7 @@ class _GoldCalculatorState extends State<GoldCalculator> {
                     style: TextStyle(
                         fontSize: 13.5,
                         fontWeight: FontWeight.bold,
-                        color: _accent)),
+                        color: _textDark)),
                 const Divider(height: 20, color: Color(0xFFF1F5F9)),
                 _buildField('Modal', _modalC, prefix: 'Rp '),
                 const SizedBox(height: 12),
@@ -420,14 +423,14 @@ class _GoldCalculatorState extends State<GoldCalculator> {
                       child: Row(
                         children: [
                           const Icon(Icons.menu_book_rounded,
-                              size: 16, color: _accent),
+                              size: 16, color: _textDark),
                           const SizedBox(width: 4),
                           Text(
                             _showFormula ? 'Tutup Rumus' : 'Lihat Rumus',
                             style: const TextStyle(
                                 fontSize: 12.5,
                                 fontWeight: FontWeight.w600,
-                                color: _accent),
+                                color: _textDark),
                           ),
                         ],
                       ),
@@ -476,7 +479,7 @@ class _GoldCalculatorState extends State<GoldCalculator> {
           keyboardType: const TextInputType.numberWithOptions(decimal: true),
           onChanged: (_) => setState(() {}),
           style: const TextStyle(
-              fontSize: 15, fontWeight: FontWeight.bold, color: _accent),
+              fontSize: 15, fontWeight: FontWeight.bold, color: _textDark),
           decoration: InputDecoration(
             hintText: '0',
             hintStyle: const TextStyle(
@@ -540,14 +543,16 @@ class _GoldCalculatorState extends State<GoldCalculator> {
               children: [
                 Icon(Icons.refresh_rounded,
                     size: 15,
-                    color: _loadingKurs ? const Color(0xFF94A3B8) : _accent),
+                    color:
+                        _loadingKurs ? const Color(0xFF94A3B8) : _textDark),
                 const SizedBox(width: 3),
                 Text(
                   'Perbarui',
                   style: TextStyle(
                     fontSize: 11.5,
                     fontWeight: FontWeight.w600,
-                    color: _loadingKurs ? const Color(0xFF94A3B8) : _accent,
+                    color:
+                        _loadingKurs ? const Color(0xFF94A3B8) : _textDark,
                   ),
                 ),
               ],
@@ -609,13 +614,13 @@ class _GoldCalculatorState extends State<GoldCalculator> {
         children: [
           const Row(
             children: [
-              Icon(Icons.functions_rounded, size: 18, color: _accent),
+              Icon(Icons.functions_rounded, size: 18, color: _textDark),
               SizedBox(width: 6),
               Text('Langkah Perhitungan',
                   style: TextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.bold,
-                      color: _accent)),
+                      color: _textDark)),
             ],
           ),
           const SizedBox(height: 10),

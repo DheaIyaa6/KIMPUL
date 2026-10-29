@@ -504,6 +504,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
           child: Padding(
             padding: const EdgeInsets.all(20),
+            child: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -586,6 +587,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ),
                 ),
                 const SizedBox(height: 14),
+                const Text(
+                  '1. Arti Nama KIMPUL',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF0F172A),
+                  ),
+                ),
+                const SizedBox(height: 6),
                 RichText(
                   text: const TextSpan(
                     style: TextStyle(
@@ -621,6 +631,28 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 const Divider(height: 1, color: Color(0xFFF1F5F9)),
                 const SizedBox(height: 16),
 
+                // FILOSOFI LOGO
+                const Text(
+                  '2. Filosofi Logo KIMPUL',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF0F172A),
+                  ),
+                ),
+                const SizedBox(height: 6),
+                const Text(
+                  'Logo KIMPUL menggabungkan huruf K sebagai identitas merek, simbol kalkulator sebagai representasi fungsi perhitungan trading, serta lingkaran terbuka yang menggambarkan dinamika pasar dan fleksibilitas analisis. Perpaduan warna pink dan biru keabu-abuan mencerminkan inovasi, kepercayaan, dan profesionalisme. Secara keseluruhan, logo ini merepresentasikan KIMPUL sebagai aplikasi kalkulator trading yang membantu pengguna melakukan perhitungan secara praktis dan memahami hasilnya sebagai bahan pertimbangan sebelum mengambil keputusan.',
+                  style: TextStyle(
+                    fontSize: 12.5,
+                    color: Color(0xFF334155),
+                    height: 1.5,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                const Divider(height: 1, color: Color(0xFFF1F5F9)),
+                const SizedBox(height: 16),
+
                 // TRADEMARK / CREDIT PERUSAHAAN (kotak penuh, sudut melengkung)
                 ClipRRect(
                   borderRadius: BorderRadius.circular(12),
@@ -645,7 +677,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 const SizedBox(height: 8),
                 const Center(
                   child: Text(
-                    'Trademark KIMPUL',
+                    '© PT Equityworld Futures',
                     style: TextStyle(
                       fontSize: 11,
                       fontStyle: FontStyle.italic,
@@ -654,6 +686,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ),
                 ),
               ],
+            ),
             ),
           ),
         );

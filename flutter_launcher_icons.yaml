@@ -1,0 +1,17 @@
+flutter_launcher_icons:
+  # Ikon Android (menggantikan ic_launcher bawaan Flutter)
+  android: true
+  ios: true
+  min_sdk_android: 21
+
+  # Logo KIMPUL (PNG persegi, sebaiknya 1024 x 1024 px)
+  image_path: "assets/images/logo_apk.png"
+
+  # Android 8+ memakai ikon adaptif: latar putih + logo
+  # inset memberi jarak supaya logo tidak terpotong oleh bentuk ikon
+  adaptive_icon_background: "#FFFFFF"
+  adaptive_icon_foreground: "assets/images/logo_apk.png"
+  adaptive_icon_foreground_inset: 16
+
+  # iOS tidak boleh punya transparansi
+  remove_alpha_ios: true
